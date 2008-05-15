@@ -7,4 +7,5 @@
   :depends-on (:alexandria :iterate :pergamum)
   :components
   ((:file "setc")
-   (:file "regvaldefs" :depends-on ("setc"))))
+   (:file "regvaldefs" :depends-on ("setc"))
+   (:file "test" :depends-on ("regvaldefs"))))
