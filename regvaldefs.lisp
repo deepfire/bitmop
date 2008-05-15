@@ -73,6 +73,12 @@
    (space :accessor device-space :type space)
    (backend :accessor device-backend :type (or null device) :initarg :backend)))
 
+(defun byte-bitmask (byte)
+  (dpb -1 byte 0))
+  
+(defun bytes-bitmask (bytes)
+  (reduce (lambda (acc byte) (dpb -1 byte acc)) bytes :initial-value 0))
+
 (defun device-hash-id (device)
   (list (type-of device) (device-id device)))
 
