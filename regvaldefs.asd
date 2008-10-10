@@ -1,3 +1,5 @@
+;;; -*- Mode: Lisp -*-
+
 (defpackage :regvaldefs.system
   (:use :cl :asdf))
 
