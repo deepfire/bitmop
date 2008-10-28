@@ -1,7 +1,15 @@
-\#*\#
-.\#*
+\#*
 *~
 *.o
 *.a
 *.fas
+*.fasb
 *.fasl
+
+# win32
+*.manifest
+*.lib
+*.exp
+*.obj
+*.ilk
+*.pdb
