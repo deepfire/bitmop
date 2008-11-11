@@ -308,8 +308,8 @@
 	(documentation (cadr (assoc :documentation f))))
     `(eval-when (:compile-toplevel :load-toplevel)
        ,(once-only (name)
-		   `(setf (space ,name) (make-instance 'space :documentation ,documentation
-						       :name ,name :implemented-by (space ,implemented-by))))
+         `(setf (space ,name) (make-instance 'space :documentation ,documentation
+                                             :name ,name :implemented-by (space ,implemented-by))))
 
        (symbol-macrolet ((*space* ,name))
 	 ,@(mapcar [cons 'define-register-format] (cdr (assoc :register-formats f)))
