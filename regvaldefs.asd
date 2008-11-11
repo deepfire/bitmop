@@ -6,7 +6,9 @@
 (in-package :regvaldefs.system)
 
 (defsystem :regvaldefs
-  :depends-on (:alexandria :iterate :pergamum)
+  :depends-on (:alexandria :iterate :pergamum
+               :semi-precious ;; for dictionaries
+               )
   :components
   ((:file "setc")
    (:file "package" :depends-on ("setc"))
