@@ -47,31 +47,46 @@
       space
       (space-root (space-implemented-by space))))
 
-(defstruct regformat
-  name documentation space bitfields)
+(defstruct docunamed
+  (name nil :type symbol)
+  (documentation "" :type string))
 
-(defstruct bitfield
-  name doc regformat spec
+(defstruct (spaced (:include docunamed))
+  (space nil :type (or null space)))
+
+(defstruct (regformat (:include spaced))
+  bitfields)
+
+(defstruct (bitfield (:include spaced))
+  regformat
+  spec
   (byteval# (make-hash-table) :type hash-table)
   (byterevval# (make-hash-table) :type hash-table))
 
-(defstruct reglayout
+(defstruct (reglayout (:include spaced))
   "Maps register names into register structures."
-  name documentation space registers)
+  registers)
   
-(defstruct reg
+(defstruct (reg (:include spaced))
   "Defines a formatted register, specified within a reglayout with a selector."
-  name documentation layout format selector type ext)
+  layout
+  format
+  selector
+  type ext)
 
-(defstruct (regset (:print-object
+(defstruct (regset (:include spaced)
+                   (:print-object
 		    (lambda (obj stream)
 		      (format stream "~@<#<REGSET~; :name ~S :documentation ~S~;>~:@>"
 			      (regset-name obj) (regset-documentation obj)))))
   "Augments register layouts with an access method."
-  name documentation space layout getter setter pass-register write-only)
+  layout
+  getter setter
+  pass-register write-only)
   
-(defstruct byteval
-  name doc value bitfield)
+(defstruct (byteval (:include spaced))
+  bitfield
+  value)
 
 (defclass device ()
   ((id :accessor device-id :type (integer 0))
@@ -180,7 +195,7 @@
 (define-accessor bitfield-byte space-bitfield-byte# :bitfield space-name)
 (define-accessor bitfield space-bitfield# :bitfield space-name)
 (define-accessor bitfield-format space-bitfield# :bitfield space-name bitfield-regformat)
-(define-accessor bitfield-documentation space-bitfield# :bitfield space-name bitfield-doc)
+(define-accessor bitfield-documentation space-bitfield# :bitfield space-name bitfield-documentation)
 (define-accessor byteval bitfield-byteval# :byteval bitfield-name)
   
 (defun register-format-field-type (name)
@@ -189,12 +204,12 @@
 (defun define-bitfield (regformat name size pos doc &optional bytevals)
   (let* ((spec (byte size pos))
 	 (space (regformat-space regformat))
-	 (bitfield (make-bitfield :regformat regformat :name name :spec spec :doc doc)))
+	 (bitfield (make-bitfield :regformat regformat :name name :spec spec :documentation doc)))
     (when (gethash name (space-bitfield# space))
       (error "Attempt to redefine as existing bitfield ~S in namespace ~S~%" name (space-name space)))
     (push bitfield (regformat-bitfields regformat))
     (loop :for (value name documentation) :in bytevals
-       :do (let ((byteval (make-byteval :name name :doc documentation :bitfield bitfield
+       :do (let ((byteval (make-byteval :name name :documentation documentation :bitfield bitfield
 								      :value value)))
 	     (setf (gethash name (bitfield-byteval# bitfield)) byteval
 		   (gethash value (bitfield-byterevval# bitfield)) byteval)))
