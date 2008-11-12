@@ -24,9 +24,6 @@
   (enable-curry-reader)
   (enable-compose-reader))
 
-(eval-when (:compile-toplevel :load-toplevel)
-  (defvar *spaces* (make-hash-table :test #'equal)))
-
 (defclass space ()
   ((name :accessor space-name :type (or keyword list) :initarg :name)
    (documentation :accessor space-documentation :type string :initarg :documentation)
@@ -40,12 +37,13 @@
    (regset# :accessor space-regset# :initform (make-hash-table) :type hash-table)
    (reg# :accessor space-reg# :initform (make-hash-table) :type hash-table)
    (bitfield# :accessor space-bitfield# :initform (make-hash-table) :type hash-table)
-   (bitfield-byte# :accessor space-bitfield-byte# :initform (make-hash-table) :type hash-table)))
+   (bitfield-byte# :accessor space-bitfield-byte# :initform (make-hash-table) :type hash-table))
+  (:default-initargs :implemented-by nil))
 
 (defun space-root (space)
-  (if (null (space-implemented-by space))
-      space
-      (space-root (space-implemented-by space))))
+  (if (space-implemented-by space)
+      (space-root (space-implemented-by space))
+      space))
 
 (defstruct docunamed
   (name nil :type symbol)
@@ -163,22 +161,9 @@
 		     (bit-notation-condition-object-name condition)
 		     (bit-notation-condition-object-container condition)))))
 
-(defun space (name &key allow-fail)
-  "If NAME is non-NIL, try to find a space so named, erring in the case of failure.
-     If NAME is NIL, return NIL."
-  (let ((space (gethash name *spaces*)))
-    (cond ((eq name '*space*)
-	   (error 'bit-notation-no-space-context-error))
-	  ((and (null space) name (not allow-fail))
-	   (error 'bit-notation-unknown-object-error :object-type :space :object-name name :object-container :namespace-root))
-	  (t space))))
+(defvar *spaces* (make-hash-table :test #'equal))
 
-(defun (setf space) (val name)
-  (setf (gethash name *spaces*) val))
-
-(defun list-spaces ()
-  (iter (for (k v) in-hashtable *spaces*)
-        (collect k)))
+(define-container-hash-accessor *spaces* space)
 
 (defmacro define-accessor (name hash-accessor object-type container-name-accessor &optional mutator)
   (with-gensyms (object-var container-var name-var)
@@ -324,7 +309,9 @@
     `(eval-when (:compile-toplevel :load-toplevel)
        ,(once-only (name)
          `(setf (space ,name) (make-instance 'space :documentation ,documentation
-                                             :name ,name :implemented-by (space ,implemented-by))))
+                                             :name ,name
+                                             ,@(when implemented-by
+                                                 `(:implemented-by (space ,implemented-by))))))
 
        (symbol-macrolet ((*space* ,name))
 	 ,@(mapcar [cons 'define-register-format] (cdr (assoc :register-formats f)))
