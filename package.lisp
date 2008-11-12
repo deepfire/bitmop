@@ -11,4 +11,5 @@
    #:byteval
    #:device #:id #:device-id #:space-device #:device-space #:backend #:device-backend #:device-register #:space-remove-device
    #:test-devbits #:test-bits #:format-decode #:reg-selector #:reg-ext
-   #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value))
+   #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
+   #:undefine-space))

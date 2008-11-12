@@ -13,5 +13,4 @@
   ((:file "setc")
    (:file "package" :depends-on ("setc"))
    (:file "utils" :depends-on ("package"))
-   (:file "regvaldefs" :depends-on ("utils"))
-   (:file "test" :depends-on ("regvaldefs"))))
+   (:file "regvaldefs" :depends-on ("utils"))))

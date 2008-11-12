@@ -18,7 +18,12 @@
 ;;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;;; Boston, MA  02111-1307  USA.
 
-(in-package :regvaldefs)
+(defpackage #:regvaldefs-test
+  (:use :common-lisp :regvaldefs :custom-harness :pergamum :setc)
+  (:shadowing-import-from :regvaldefs #:space)
+  (:export #:run-tests #:pure-evaluation #:device-related))
+
+(in-package :regvaldefs-test)
 
 (define-namespace :foo
   (:implemented-by nil)
@@ -70,92 +75,81 @@
 
 (defparameter tdev (make-instance 'test-device))
 
-(unless (= (bits (:b0 :b2)) #b101 (bits (:b0 :b2) (plusp 1) (minusp -1)))
-  (error "BITS base test failed."))
+(deftest pure-evaluation base-bit-expression-test (foo)
+  (declare (ignore foo))
+  (and (expect-value #b101 (bits (:b0 :b2)))
+       (expect-value #b101 (bits (:b0 :b2) (plusp 1) (minusp -1)))))
 
-(unless (= (bits (:bc) #b111) (bits (:b1 :b2 :b3)))
-  (error "BITS literal value test failed: ~B vs ~B."
-         (bits (:bc) #b111) (bits (:b1 :b2 :b3))))
+(deftest pure-evaluation literal-singlet-expression-test (foo)
+  (declare (ignore foo))
+  (and (expect-value #b1110 (bits (:bc) #b111))
+       (expect-value #b1110 (bits (:b1 :b2 :b3)))))
 
-(unless (= (bits (:bc) :noo) (bits (:b2 :b3)))
-  (error "BITS named value test failed: ~B vs. ~B."
-         (bits (:bc) :noo) (bits (:b2 :b3))))
+(deftest pure-evaluation literal-compound-expression-test (foo)
+  (declare (ignore foo))
+  (and (expect-value #b1100 (bits (:b2 :b3)))
+       (expect-value #b1100 (bits (:bc) :noo))))
 
-(unless (= #b110 (bit-value (bits (:bc) :noo) :bc))
-  (error "BIT-VALUE/BITS compound test failed: ~B vs. ~B."
-         (bit-value (bits (:bc) :noo) :bc) #b110))
+(deftest device-related register-bit-io-test (tdev)
+  (setc (devreg tdev :fooreg) 0
+        (devbit tdev :fooreg :f0 :write-only t) t)
+  (expect-success (and (devbit tdev :fooreg :f0)
+                       (not (devbit tdev :fooreg :f1)))))
 
-(setc (devreg tdev :fooreg) 0 (devreg tdev :barreg) 0)
-(setc (devbit tdev :fooreg :f0 :write-only t) t)
-(unless (and (devbit tdev :fooreg :f0) (not (devbit tdev :fooreg :f1)))
-  (error "(SETC DEVBIT)/DEVBIT single boolean bit test failed."))
+(deftest device-related compound-numeric-bitvalue-plus-devbit-value-test (tdev)
+  (setc (devreg tdev :barreg) 0
+        (devbit tdev :barreg :bc) #b110)
+  (expect-value (ash (bits (:bc) :noo) -1) (devbit-value tdev :barreg :bc)))
 
-(setc (devreg tdev :barreg) 0)
-(setc (devbit tdev :barreg :bc) #b110)
-(unless (= (devbit-value tdev :barreg :bc) (ash (bits (:bc) :noo) -1))
-  (error "(SETC DEVBIT)/DEVBIT single numeric bit test failed: ~B instead of ~B."
-         (devbit-value tdev :barreg :bc) (ash (bits (:bc) :noo) -1)))
+(deftest device-related compound-named-bitvalue-test (tdev)
+  (setc (devreg tdev :barreg) 0
+        (devbit tdev :barreg :bc) :noo)
+  (and (expect-success (not (or (devbit tdev :barreg :b0) (devbit tdev :barreg :b4))))
+       (expect-success (and (devbit tdev :barreg :b3) (devbit tdev :barreg :b2) (not (devbit tdev :barreg :b1))))))
 
-(setc (devreg tdev :barreg) 0)
-(setc (devbits tdev :barreg (:bc)) (#b110))
-(unless (= (devbit-value tdev :barreg :bc) (ash (bits (:bc) :noo) -1))
-  (error "(SETC DEVBITS)/DEVBITS single numeric bit test failed: ~B instead of ~B."
-         (devbit-value tdev :barreg :bc) (ash (bits (:bc) :noo) -1)))
+(deftest device-related spread-immediate-evaluation-test (tdev)
+  (setc (devreg tdev :fooreg) 0
+        (devbits tdev :fooreg (:f0 :f1 :f2)) (t nil nil))
+  (expect-value '(t nil nil)
+                (multiple-value-list (devbits tdev :fooreg (:f0 :f1 :f2)))
+                :test 'equal))
 
-(setc (devreg tdev :barreg) 0)
-(setc (devbit tdev :barreg :bc) :noo)
-(unless (= (devbit-value tdev :barreg :bc) (ash (bits (:bc) :noo) -1))
-  (error "coumpound named bit + DEVBIT-VALUE test failed: full:~B/~B instead of ~B."
-         (devreg tdev :barreg) (devbit-value tdev :barreg :bc) (ash (bits (:bc) :noo) -1)))
+(deftest device-related spread-delayed-evaluation-test (tdev)
+  (setc (devreg tdev :fooreg) 0
+        (devbits tdev :fooreg (:f0 :f1 :f2)) (#b1 (plusp 0) nil))
+  (expect-value '(t nil nil)
+                (multiple-value-list (devbits tdev :fooreg (:f0 :f1 :f2)))
+                :test 'equal))
 
-(setc (devreg tdev :barreg) 0)
-(setc (devbit tdev :barreg :bc) :noo)
-(unless (and (not (devbit tdev :barreg :b4))
-             (devbit tdev :barreg :b3) (devbit tdev :barreg :b2) (not (devbit tdev :barreg :b1))
-             (not (devbit tdev :barreg :b0)))
-  (error "(SETC DEVBIT)/DEVBIT compound bitfield named value test failed: read ~B."
-         (devreg tdev :barreg)))
-
-(setc (devreg tdev :fooreg) 0)
-(let ((write '(t nil nil)))
-  (setc (devbits tdev :fooreg (:f0 :f1 :f2)) (t nil nil))
-  (let ((read (multiple-value-list (devbits tdev :fooreg (:f0 :f1 :f2)))))
-    (unless (equal read write)
-      (error "(SETC DEVBITS)/DEVBITS spread bits immediate test failed: wrote ~S read ~S."
-             write read))))
-
-(setc (devreg tdev :fooreg) 0)
-(let ((write '(t nil nil)))
-  (setc (devbits tdev :fooreg (:f0 :f1 :f2)) (#b1 (plusp 0) nil))
-  (let ((read (multiple-value-list (devbits tdev :fooreg (:f0 :f1 :f2)))))
-    (unless (equal read write)
-      (error "(SETF DEVBITS)/DEVBITS spread bits delayed evaluation test failed."))))
-
-(setc (devreg tdev :barreg) 0)
-(let ((write '(nil t t nil nil)))
-  (setc (devbits tdev :barreg (:b4 :b0)) (nil nil)
+(deftest device-related compound-value-compositing-test (tdev)
+  (setc (devreg tdev :barreg) 0
+        (devbits tdev :barreg (:b4 :b0)) (nil nil)
         (devbits tdev :barreg (:bc)) (:noo))
-  (let ((read (multiple-value-list (devbits tdev :barreg (:b4 :b3 :b2 :b1 :b0)))))
-    (unless (equal read write)
-      (error "(SETF DEVBITS)/DEVBITS compound value compositing test failed: read ~B -> ~S."
-             (devreg tdev :barreg) read))))
+  (expect-value '(nil t t nil nil)
+                (multiple-value-list (devbits tdev :barreg (:b4 :b3 :b2 :b1 :b0)))
+                :test 'equal))
 
-(setc (devreg tdev :barreg) 0)
-(let ((write '(nil t nil nil nil))
-      (suprvar :eoo))
-  (setc (devbits tdev :barreg (:bc)) (suprvar))
-  (let ((read (multiple-value-list (devbits tdev :barreg (:b4 :b3 :b2 :b1 :b0)))))
-    (unless (equal read write)
-      (error "(SETF DEVBITS)/DEVBITS multiple compound value mixed-evaluation test failed: read ~B -> ~S."
-             (devreg tdev :barreg) read))))
+(deftest device-related multiple-compound-mixed-evaluation-test (tdev)
+  (let ((supervar :eoo))
+    (setc (devreg tdev :barreg) 0
+          (devbits tdev :barreg (:bc)) (supervar))
+    (expect-value '(nil t nil nil nil)
+                  (multiple-value-list (devbits tdev :barreg (:b4 :b3 :b2 :b1 :b0)))
+                  :test 'equal)))
 
-(setc (devreg tdev :barreg) 0)
-(let ((suprvar :eoo))
-  (setc (devbits tdev :barreg (:bc)) (suprvar))
-  (unless (test-devbits tdev :barreg :bc :eoo)
-    (error "TEST-DEVBITS compound value test failed: read ~B."
-           (devreg tdev :barreg))))
+(deftest device-related compound-value-test (tdev)
+  (let ((supervar :eoo))
+    (setc (devreg tdev :barreg) 0
+          (devbits tdev :barreg (:bc)) (supervar))
+    (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
-(undefine-space :foo)
-(undefine-space :bar)
-(undefine-space '(:foo :bar)) ;; FIXME
+(defun run-tests (&rest test-suites)
+  "Run a set of test suites. Defaults to PURE-EVALUATION and DEVICE-RELATED."
+  (let ((test-suites (or test-suites '(pure-evaluation device-related))))
+    (with-condition-printing (t custom-harness:test-error)
+      (lret ((success t))
+        (dolist (suite test-suites)
+          (andf success (run-test-suite (ecase suite
+                                          (pure-evaluation nil)
+                                          (device-related (make-instance 'test-device)))
+                                        suite)))))))
