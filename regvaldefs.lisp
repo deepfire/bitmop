@@ -202,12 +202,6 @@
       (setf (gethash name (space-bitfield-byte# space)) spec
 	    (gethash name (space-bitfield# space)) bitfield))))
 
-(defun bitfield-wide-p (bitfield)
-  (> (car (bitfield-spec bitfield)) 1))
-
-(defun bitfield-enumerated-p (bitfield)
-  (plusp (hash-table-count (bitfield-byteval# bitfield))))
-
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
   (let ((format (make-regformat :name name :documentation documentation :space space)))
@@ -372,14 +366,14 @@
 
 (defun bitfield-decode (bitfield value &key (symbolise-unknowns t))
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
-  (cond ((bitfield-enumerated-p bitfield)
+  (cond ((plusp (hash-table-count (bitfield-byteval# bitfield))) ;; bitfield-enumerated-p?
 	 (let* ((val (ldb (bitfield-spec bitfield) value)))
 	   (if-let ((field (gethash val (bitfield-byterevval# bitfield))))
 		   (byteval-name field)
                    (if symbolise-unknowns
                        (format-symbol :keyword "UNKNOWN-VALUE-~B" val)
                        val))))
-	((bitfield-wide-p bitfield)
+	((> (car (bitfield-spec bitfield)) 1) ;; bitfield-wide-p?
 	 (ldb (bitfield-spec bitfield) value))
 	(t
 	 (ldb-test (bitfield-spec bitfield) value))))
