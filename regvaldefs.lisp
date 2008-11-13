@@ -395,7 +395,8 @@
   space-name bitfield-name
   (bind# (make-hash-table) :type hash-table))
 
-(defparameter *null-environment* (make-environment))
+(defun env-empty-p (env)
+  (zerop (hash-table-count (env-bind# env))))
 
 (defun mkenv (space-name bitfield-name)
   (make-environment :space-name space-name :bitfield-name bitfield-name
@@ -403,16 +404,15 @@
 			       (bitfield-byteval# (bitfield (space space-name) bitfield-name)))))
   
 (defun load-time-env (env)
-  (let ((env (or env (error "Unsustainable shite here.~%") *null-environment*)))
-    `(load-time-value (mkenv ',(env-space-name env) ,(env-bitfield-name env)))))
+  (declare)
+  `(load-time-value (mkenv ',(env-space-name env) ,(env-bitfield-name env))))
 
 (defun var (env name)
-  (declare (type symbol name) (type (or null environment) env))
-  (let ((env (or env *null-environment*)))
-    (multiple-value-bind (val exist-p) (gethash name (env-bind# env))
-      (unless exist-p
-	(error "Unbound var ~S in ~S." name env))
-      (dpb (byteval-value val) (bitfield-spec (byteval-bitfield val)) 0))))
+  (declare (type symbol name) (type environment env))
+  (multiple-value-bind (val exist-p) (gethash name (env-bind# env))
+    (unless exist-p
+      (error "Unbound var ~S in ~S." name env))
+    (dpb (byteval-value val) (bitfield-spec (byteval-bitfield val)) 0)))
 
 ;; this is _insanely_ error-prone... (though easy to control, since its uses are limited)
 (defun val (env val)
@@ -524,33 +524,33 @@
     (symbol (error "~@<There is no way to determine the value of ~S in this context.~:@>" form))))
   
 (defun neval (form &optional bitmasks envs)
-  (cond
-    ((atom form) (let ((imm-p (immediate-p form)) (bitmask (or (car bitmasks) -1)))
-		   (values (if imm-p (eval-atom form bitmask (car envs))
-			       `(eval-atom ,form ,bitmask ,(load-time-env (car envs))))
-			   (not imm-p))))
-    ((quoted-p form) form)
-    ((null (eop (car form))) (values (if (car envs)
-                                         `(eval-atom ,form ,(or (car bitmasks) -1)
-                                                     ,(load-time-env (car envs)))
-                                         `(eval-atom-no-var ,form ,(or (car bitmasks) -1)))
-                                     t))
-    (t (multiple-value-bind (present-p assoc-op-p identity) (eop (car form))
-	 (declare (ignore present-p))
-	 (labels ((iterate (parms bitmasks envs)
-		    (let* ((parm (car parms)) (quotedp (quoted-p parm))
-			   (bmask (car bitmasks)) (bitmasks (if quotedp bitmasks (cdr bitmasks)))
-			   (env (car envs)) (envs (if quotedp envs (cdr envs))))
-		      (when parms
-			(multiple-value-bind (tail var-p fold) (iterate (cdr parms) bitmasks envs)
-			  (multiple-value-bind (stail svar-p) (neval parm `(,bmask) `(,env))
-			    (if (and (immediate-p parm) assoc-op-p)
-				(values tail (or var-p svar-p) (cons stail fold))
-				(values (cons stail tail) (or var-p svar-p) fold))))))))
-	   (multiple-value-bind (tail var-p fold) (iterate (cdr form) bitmasks envs)
-	     (let ((params (prepend/reduce-equiv fold (fdefinition (car form)) tail
-						 :identity identity)))
-	       (values (eval-if (not var-p) (list* (car form) params)) var-p))))))))
+  (flet ((emit-deferred-form (&aux (bitmask (or (car bitmasks) -1)))
+           (if (and (car envs)
+                    (not (env-empty-p (car envs)))) ;; do we have a chance of resolving it?
+               `(eval-atom ,form ,bitmask ,(load-time-env (car envs)))
+               `(eval-atom-no-var ,form ,bitmask))))
+   (cond
+     ((atom form) (let ((imm-p (immediate-p form)))
+                    (values (if imm-p (eval-atom form (or (car bitmasks) -1) (car envs)) (emit-deferred-form))
+                            (not imm-p))))
+     ((quoted-p form) form)
+     ((null (eop (car form))) (values (emit-deferred-form) t))
+     (t (multiple-value-bind (present-p assoc-op-p identity) (eop (car form))
+          (declare (ignore present-p))
+          (labels ((iterate (parms bitmasks envs)
+                            (let* ((parm (car parms)) (quotedp (quoted-p parm))
+                                   (bmask (car bitmasks)) (bitmasks (if quotedp bitmasks (cdr bitmasks)))
+                                   (env (car envs)) (envs (if quotedp envs (cdr envs))))
+                              (when parms
+                                (multiple-value-bind (tail var-p fold) (iterate (cdr parms) bitmasks envs)
+                                  (multiple-value-bind (stail svar-p) (neval parm `(,bmask) `(,env))
+                                    (if (and (immediate-p parm) assoc-op-p)
+                                        (values tail (or var-p svar-p) (cons stail fold))
+                                        (values (cons stail tail) (or var-p svar-p) fold))))))))
+            (multiple-value-bind (tail var-p fold) (iterate (cdr form) bitmasks envs)
+              (let ((params (prepend/reduce-equiv fold (fdefinition (car form)) tail
+                             :identity identity)))
+                (values (eval-if (not var-p) (list* (car form) params)) var-p)))))))))
 
 (defun device-register (device regset register)
   (declare (type device device) (type reg register))
