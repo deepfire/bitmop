@@ -403,7 +403,7 @@
 			       (bitfield-byteval# (bitfield (space space-name) bitfield-name)))))
   
 (defun load-time-env (env)
-  (let ((env (or env *null-environment*)))
+  (let ((env (or env (error "Unsustainable shite here.~%") *null-environment*)))
     `(load-time-value (mkenv ',(env-space-name env) ,(env-bitfield-name env)))))
 
 (defun var (env name)
@@ -514,6 +514,14 @@
     (null 0)
     ((eql t) mask)
     (keyword (logand mask (var env form)))))
+
+(defun eval-atom-no-var (form mask)
+  (declare (type (or number boolean keyword) form) (type integer mask))
+  (etypecase form
+    (number (logand mask form))
+    (null 0)
+    ((eql t) mask)
+    (symbol (error "~@<There is no way to determine the value of ~S in this context.~:@>" form))))
   
 (defun neval (form &optional bitmasks envs)
   (cond
@@ -522,8 +530,11 @@
 			       `(eval-atom ,form ,bitmask ,(load-time-env (car envs))))
 			   (not imm-p))))
     ((quoted-p form) form)
-    ((null (eop (car form))) (values `(eval-atom ,form ,(or (car bitmasks) -1)
-						 ,(load-time-env (car envs))) t))
+    ((null (eop (car form))) (values (if (car envs)
+                                         `(eval-atom ,form ,(or (car bitmasks) -1)
+                                                     ,(load-time-env (car envs)))
+                                         `(eval-atom-no-var ,form ,(or (car bitmasks) -1)))
+                                     t))
     (t (multiple-value-bind (present-p assoc-op-p identity) (eop (car form))
 	 (declare (ignore present-p))
 	 (labels ((iterate (parms bitmasks envs)
