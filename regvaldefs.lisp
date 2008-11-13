@@ -32,7 +32,7 @@
    (device# :accessor space-device# :initform (make-hash-table :test 'equal) :type hash-table)
    (devicetype# :accessor space-devicetype# :initform (make-hash-table) :type hash-table)
    (regformat# :accessor space-regformat# :initform (make-hash-table) :type hash-table)
-   (reglayout# :accessor space-reglayout# :initform (make-hash-table) :type hash-table)
+   (layout# :accessor space-layout# :initform (make-hash-table) :type hash-table)
    (regsetmap# :accessor space-regsetmap# :initform (make-hash-table) :type hash-table)
    (regset# :accessor space-regset# :initform (make-hash-table) :type hash-table)
    (reg# :accessor space-reg# :initform (make-hash-table) :type hash-table)
@@ -61,12 +61,12 @@
   (byteval# (make-hash-table) :type hash-table)
   (byterevval# (make-hash-table) :type hash-table))
 
-(defstruct (reglayout (:include spaced))
+(defstruct (layout (:include spaced))
   "Maps register names into register structures."
   registers)
   
 (defstruct (reg (:include spaced))
-  "Defines a formatted register, specified within a reglayout with a selector."
+  "Defines a formatted register, specified within a layout with a selector."
   layout
   format
   selector
@@ -105,7 +105,7 @@
   (list (type-of device) (device-id device)))
 
 (defmethod print-object ((space space) stream)
-  (format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S regformats: ~S regsets: ~S registers: ~S devices: ~S regsetmap: ~S reglayouts: ~S~;>~:@>"
+  (format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S regformats: ~S regsets: ~S registers: ~S devices: ~S regsetmap: ~S layouts: ~S~;>~:@>"
 	  (space-name space)
 	  (space-documentation space) (if (listp (space-implemented-by space))
 					  (space-implemented-by space)
@@ -116,7 +116,7 @@
 	  (loop :for x :being :the :hash-values :in (space-device# space) :collect (device-hash-id x))
 	  (loop :for x :being :the :hash-values :in (space-regsetmap# space)
 	     :using (hash-key k) :collect (list k x))
-	  (loop :for x :being :the :hash-values :in (space-reglayout# space) :collect (reglayout-name x))))
+	  (loop :for x :being :the :hash-values :in (space-layout# space) :collect (layout-name x))))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
@@ -179,7 +179,7 @@
 
 (define-accessor regformat space-regformat# :regformat space-name)
 (define-accessor register-set space-regset# :register-set space-name)
-(define-accessor register-layout space-reglayout# :register-layout space-name)
+(define-accessor register-layout space-layout# :register-layout space-name)
 (define-accessor register space-reg# :register space-name)
 (define-accessor bitfield-byte space-bitfield-byte# :bitfield space-name)
 (define-accessor bitfield space-bitfield# :bitfield space-name)
@@ -216,20 +216,20 @@
      (deftype ,(register-format-field-type name) () `(member ,,@(mapcar #'car bitspecs)))
      (define-register-format-notype (space ,(space-name (space (space-name-context env)))) ',name ,doc ',bitspecs)))
   
-(defun define-register (reglayout name selector &key (doc "Undocumented register.") format ext)
-  (when (gethash name (space-reg# (reglayout-space reglayout)))
+(defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
+  (when (gethash name (space-reg# (layout-space layout)))
     (error "Attempt to redefine register ~S in namespace ~S."
-	   name (space-name (reglayout-space reglayout))))
-  (let ((register (make-reg :layout reglayout :name name :selector selector :documentation doc
-			    :format (when format (regformat (reglayout-space reglayout) format)) :ext ext
+	   name (space-name (layout-space layout))))
+  (let ((register (make-reg :layout layout :name name :selector selector :documentation doc
+			    :format (when format (regformat (layout-space layout) format)) :ext ext
 			    :type (register-format-field-type format))))
-    (push register (reglayout-registers reglayout))
-    (setf (gethash name (space-reg# (reglayout-space reglayout))) register)))
+    (push register (layout-registers layout))
+    (setf (gethash name (space-reg# (layout-space layout))) register)))
 
 (defun define-register-layout-notype (space name documentation regspecs)
-  (let ((reglayout (make-reglayout :name name :space space :documentation documentation)))
-    (mapc [apply [define-register reglayout]] regspecs)
-    (setf (gethash name (space-reglayout# space)) reglayout)))
+  (let ((layout (make-layout :name name :space space :documentation documentation)))
+    (mapc [apply [define-register layout]] regspecs)
+    (setf (gethash name (space-layout# space)) layout)))
 
 (defmacro define-register-layout (&environment env (name doc) &rest defs)
   `(progn
@@ -253,7 +253,7 @@
      (eval-when (:compile-toplevel :load-toplevel)
        (let* ((space (space ',(space-name (space (space-name-context env)))))
               (layout (register-layout space ',layout-name))
-              (home-space (reglayout-space layout))
+              (home-space (layout-space layout))
               (regset (make-regset :name ',name :space home-space :layout layout :documentation ,doc
                                                                                  :write-only ,write-only :pass-register ,pass-register)))
          (setf (gethash ',name (space-regset# home-space)) regset)
@@ -332,7 +332,7 @@
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
 	(dolist (accessor-name '(space-regset# space-reg# space-regformat# space-bitfield# space-bitfield-byte#
-				 space-reglayout# space-regsetmap#))
+				 space-layout# space-regsetmap#))
 	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
 	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
     (setf (space names) unispace)))
