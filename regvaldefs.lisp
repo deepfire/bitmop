@@ -83,8 +83,11 @@
   pass-register write-only)
   
 (defstruct (byteval (:include spaced))
-  bitfield
+  byte
   value)
+
+(defmethod make-load-form ((o byteval) &optional env)
+  (make-load-form-saving-slots o :environment env))
 
 (defclass device ()
   ((id :accessor device-id :type (integer 0))
@@ -187,19 +190,18 @@
   (format-symbol t "~A-BITFIELD" name))
 
 (defun define-bitfield (regformat name size pos doc &optional bytevals)
-  (let* ((spec (byte size pos))
+  (let* ((byte (byte size pos))
 	 (space (regformat-space regformat))
-	 (bitfield (make-bitfield :regformat regformat :name name :spec spec :documentation doc)))
+	 (bitfield (make-bitfield :regformat regformat :name name :spec byte :documentation doc)))
     (when (gethash name (space-bitfield# space))
       (error "Attempt to redefine as existing bitfield ~S in namespace ~S~%" name (space-name space)))
     (push bitfield (regformat-bitfields regformat))
     (loop :for (value name documentation) :in bytevals
-       :do (let ((byteval (make-byteval :name name :documentation documentation :bitfield bitfield
-								      :value value)))
+       :do (let ((byteval (make-byteval :name name :documentation documentation :byte byte :value value)))
 	     (setf (gethash name (bitfield-byteval# bitfield)) byteval
 		   (gethash value (bitfield-byterevval# bitfield)) byteval)))
     (dolist (space (list* space (mapcar #'space (space-referrers space))))
-      (setf (gethash name (space-bitfield-byte# space)) spec
+      (setf (gethash name (space-bitfield-byte# space)) byte
 	    (gethash name (space-bitfield# space)) bitfield))))
 
 ;; an ability to pluck in a QUOTE would've been very nice...
@@ -395,6 +397,9 @@
   space-name bitfield-name
   (bind# (make-hash-table) :type hash-table))
 
+(defmethod make-load-form ((o environment) &optional env)
+  (make-load-form-saving-slots o :environment env))
+
 (defun env-empty-p (env)
   (zerop (hash-table-count (env-bind# env))))
 
@@ -403,16 +408,12 @@
 		    :bind# (if (or (null space-name) (null bitfield-name)) (make-hash-table)
 			       (bitfield-byteval# (bitfield (space space-name) bitfield-name)))))
   
-(defun load-time-env (env)
-  (declare)
-  `(load-time-value (mkenv ',(env-space-name env) ,(env-bitfield-name env))))
-
 (defun var (env name)
   (declare (type symbol name) (type environment env))
   (multiple-value-bind (val exist-p) (gethash name (env-bind# env))
     (unless exist-p
       (error "Unbound var ~S in ~S." name env))
-    (dpb (byteval-value val) (bitfield-spec (byteval-bitfield val)) 0)))
+    (dpb (byteval-value val) (byteval-byte val) 0)))
 
 ;; this is _insanely_ error-prone... (though easy to control, since its uses are limited)
 (defun val (env val)
@@ -527,7 +528,7 @@
   (flet ((emit-deferred-form (&aux (bitmask (or (car bitmasks) -1)))
            (if (and (car envs)
                     (not (env-empty-p (car envs)))) ;; do we have a chance of resolving it?
-               `(eval-atom ,form ,bitmask ,(load-time-env (car envs)))
+               `(eval-atom ,form ,bitmask ,(car envs))
                `(eval-atom-no-var ,form ,bitmask))))
    (cond
      ((atom form) (let ((imm-p (immediate-p form)))
