@@ -477,21 +477,10 @@
     (null 0)
     ((eql t) mask)
     (keyword (logand mask (var env form)))))
-
-(defun eval-atom-no-var (form mask)
-  (declare (type (or number boolean keyword) form) (type integer mask))
-  (etypecase form
-    (number (logand mask form))
-    (null 0)
-    ((eql t) mask)
-    (symbol (error "~@<There is no way to determine the value of ~S in this context.~:@>" form))))
   
 (defun neval (form &optional bitmasks envs)
   (flet ((emit-deferred-form (&aux (bitmask (or (car bitmasks) -1)))
-           (if (and (car envs)
-                    (not (env-empty-p (car envs)))) ;; do we have a chance of resolving it?
-               `(eval-atom ,form ,bitmask ,(car envs))
-               `(eval-atom-no-var ,form ,bitmask))))
+           `(eval-atom ,form ,bitmask ,(car envs))))
    (cond
      ((atom form) (let ((imm-p (immediate-p form)))
                     (values (if imm-p (eval-atom form (or (car bitmasks) -1) (car envs)) (emit-deferred-form))
