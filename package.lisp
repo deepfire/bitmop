@@ -1,6 +1,6 @@
 (defpackage regvaldefs
   (:nicknames :rvd) 
-  (:use :common-lisp :alexandria :pergamum :iterate :setc)
+  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval)
   (:shadow #:space)
   (:export
    #:space #:space-name #:space-root #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:purge-namespace-devices #:list-spaces
