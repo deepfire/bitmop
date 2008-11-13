@@ -393,75 +393,6 @@
 	    (error "Ambiguous multiregister access: ~S vs. ~S:~S"
 		   (regformat-name fmt) (regformat-name (bitfield-format space stray)) stray))))
 
-(defstruct (environment (:conc-name env-))
-  space-name bitfield-name
-  (bind# (make-hash-table) :type hash-table))
-
-(defmethod make-load-form ((o environment) &optional env)
-  (make-load-form-saving-slots o :environment env))
-
-(defun env-empty-p (env)
-  (zerop (hash-table-count (env-bind# env))))
-
-(defun mkenv (space-name bitfield-name)
-  (make-environment :space-name space-name :bitfield-name bitfield-name
-		    :bind# (if (or (null space-name) (null bitfield-name)) (make-hash-table)
-			       (bitfield-byteval# (bitfield (space space-name) bitfield-name)))))
-  
-(defun var (env name)
-  (declare (type symbol name) (type environment env))
-  (multiple-value-bind (val exist-p) (gethash name (env-bind# env))
-    (unless exist-p
-      (error "Unbound var ~S in ~S." name env))
-    (dpb (byteval-value val) (byteval-byte val) 0)))
-
-;; this is _insanely_ error-prone... (though easy to control, since its uses are limited)
-(defun val (env val)
-  (declare (type (or null environment) env) (type (unsigned-byte 32) val))
-  (if (and env (env-space-name env) (env-bitfield-name env))
-      (let* ((space (space (env-space-name env)))
-	     (bitfield (bitfield space (env-bitfield-name env))))
-	(dpb val (bitfield-spec bitfield) 0))
-      val))
-
-(defmacro decode-context-with-bitfields ((spacename &optional regset-want space-want bitfield fmtname) regname bytenames env &body body)
-  (let ((space (or space-want (gensym))) (regset (and regname regset-want)) (newbytenames (gensym)))
-    `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
-            (,newbytenames (ensure-list ,bytenames))
-            ,@(when bitfield `((,bitfield (bitfield ,space (car ,newbytenames)))))
-            ,@(when regset `((,regset (register-regset-name ,space ,regname (regset-context ,env)))))
-            ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
-                                                              (regformat-name format)))))))
-       (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when regset `(,regset)) ,newbytenames))
-       (bytenames-ensure-same-register ,space ,regname ,newbytenames)
-       ,@(when regset
-               `((unless (or (register-unambiguous-regset ,space ,regname)
-                             (null (regset-context ,env))
-                             (member (regset-name (register-set ,space ,regset)) (regset-context ,env)))
-                   (error "regset context compilation error: mapped ~S to ~S, while ~S were available"
-                          ,regname (regset-name (register-set ,space ,regset)) (regset-context ,env)))))
-       ,@body)))
-
-(defmacro decode-context-without-bitfields ((spacename &optional regset-want space-want fmtname) regname env &body body)
-  (let ((space (or space-want (gensym))) (regset (and regname regset-want)))
-    `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
-            ,@(when regset `((,regset (register-regset-name ,space ,regname (regset-context ,env)))))
-            ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
-                                                              (regformat-name format)))))))
-       (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when regset `(,regset))))
-       ,@(when regset
-               `((unless (or (register-unambiguous-regset ,space ,regname)
-                             (null (regset-context ,env))
-                             (member (regset-name (register-set ,space ,regset)) (regset-context ,env)))
-                   (error "regset context compilation error: mapped ~S to ~S, while ~S were available"
-                          ,regname (regset-name (register-set ,space ,regset)) (regset-context ,env)))))
-       ,@body)))
-
-(defmacro decode-context ((spacename &optional regset-want space-want bitfield fmtname) regname bytenames env &body body)
-  (if bytenames
-      `(decode-context-with-bitfields (,spacename ,regset-want ,space-want ,bitfield ,fmtname) ,regname ,bytenames ,env ,@body)
-      `(decode-context-without-bitfields (,spacename ,regset-want ,space-want ,fmtname) ,regname ,env ,@body)))
-
 (defstruct (early-operator (:conc-name eop-))
   name evalspec associativity identity)
 
@@ -506,6 +437,37 @@
       (and (consp form)
 	   (if-let* ((espec (eop (car form))) (evalmask (decode-eval-mask espec form)))
 		    (every #'or-p (mapcar #'immediate-p (cdr form)) (mapcar #'null evalmask))))))
+
+(defstruct (environment (:conc-name env-))
+  space-name bitfield-name
+  (bind# (make-hash-table) :type hash-table))
+
+(defmethod make-load-form ((o environment) &optional env)
+  (make-load-form-saving-slots o :environment env))
+
+(defun env-empty-p (env)
+  (zerop (hash-table-count (env-bind# env))))
+
+(defun mkenv (space-name bitfield-name)
+  (make-environment :space-name space-name :bitfield-name bitfield-name
+		    :bind# (if (or (null space-name) (null bitfield-name)) (make-hash-table)
+			       (bitfield-byteval# (bitfield (space space-name) bitfield-name)))))
+  
+(defun var (env name)
+  (declare (type symbol name) (type environment env))
+  (multiple-value-bind (val exist-p) (gethash name (env-bind# env))
+    (unless exist-p
+      (error "Unbound var ~S in ~S." name env))
+    (dpb (byteval-value val) (byteval-byte val) 0)))
+
+;; this is _insanely_ error-prone... (though easy to control, since its uses are limited)
+(defun val (env val)
+  (declare (type (or null environment) env) (type (unsigned-byte 32) val))
+  (if (and env (env-space-name env) (env-bitfield-name env))
+      (let* ((space (space (env-space-name env)))
+	     (bitfield (bitfield space (env-bitfield-name env))))
+	(dpb val (bitfield-spec bitfield) 0))
+      val))
 
 (defun eval-atom (form mask env)
   (declare (type (or number boolean keyword) form) (type integer mask)
@@ -552,6 +514,44 @@
               (let ((params (prepend/reduce-equiv fold (fdefinition (car form)) tail
                              :identity identity)))
                 (values (eval-if (not var-p) (list* (car form) params)) var-p)))))))))
+
+(defmacro decode-context-with-bitfields ((spacename &optional regset-want space-want bitfield fmtname) regname bytenames env &body body)
+  (let ((space (or space-want (gensym))) (regset (and regname regset-want)) (newbytenames (gensym)))
+    `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
+            (,newbytenames (ensure-list ,bytenames))
+            ,@(when bitfield `((,bitfield (bitfield ,space (car ,newbytenames)))))
+            ,@(when regset `((,regset (register-regset-name ,space ,regname (regset-context ,env)))))
+            ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
+                                                              (regformat-name format)))))))
+       (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when regset `(,regset)) ,newbytenames))
+       (bytenames-ensure-same-register ,space ,regname ,newbytenames)
+       ,@(when regset
+               `((unless (or (register-unambiguous-regset ,space ,regname)
+                             (null (regset-context ,env))
+                             (member (regset-name (register-set ,space ,regset)) (regset-context ,env)))
+                   (error "regset context compilation error: mapped ~S to ~S, while ~S were available"
+                          ,regname (regset-name (register-set ,space ,regset)) (regset-context ,env)))))
+       ,@body)))
+
+(defmacro decode-context-without-bitfields ((spacename &optional regset-want space-want fmtname) regname env &body body)
+  (let ((space (or space-want (gensym))) (regset (and regname regset-want)))
+    `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
+            ,@(when regset `((,regset (register-regset-name ,space ,regname (regset-context ,env)))))
+            ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
+                                                              (regformat-name format)))))))
+       (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when regset `(,regset))))
+       ,@(when regset
+               `((unless (or (register-unambiguous-regset ,space ,regname)
+                             (null (regset-context ,env))
+                             (member (regset-name (register-set ,space ,regset)) (regset-context ,env)))
+                   (error "regset context compilation error: mapped ~S to ~S, while ~S were available"
+                          ,regname (regset-name (register-set ,space ,regset)) (regset-context ,env)))))
+       ,@body)))
+
+(defmacro decode-context ((spacename &optional regset-want space-want bitfield fmtname) regname bytenames env &body body)
+  (if bytenames
+      `(decode-context-with-bitfields (,spacename ,regset-want ,space-want ,bitfield ,fmtname) ,regname ,bytenames ,env ,@body)
+      `(decode-context-without-bitfields (,spacename ,regset-want ,space-want ,fmtname) ,regname ,env ,@body)))
 
 (defun device-register (device regset register)
   (declare (type device device) (type reg register))
