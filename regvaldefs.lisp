@@ -86,9 +86,6 @@
   byte
   value)
 
-(defmethod make-load-form ((o byteval) &optional env)
-  (make-load-form-saving-slots o :environment env))
-
 (defclass device ()
   ((id :accessor device-id :type (integer 0))
    (space :accessor device-space :type space)
@@ -96,7 +93,11 @@
 
 (defun byte-bitmask (byte)
   (dpb -1 byte 0))
-  
+
+(defun flatten-byteval (byteval)
+  (declare (type byteval byteval))
+  (dpb (byteval-value byteval) (byteval-byte byteval) 0))
+
 (defun bytes-bitmask (bytes)
   (reduce (lambda (acc byte) (dpb -1 byte acc)) bytes :initial-value 0))
 
@@ -439,40 +440,42 @@
 		    (every #'or-p (mapcar #'immediate-p (cdr form)) (mapcar #'null evalmask))))))
 
 (defstruct (environment (:conc-name env-))
-  space-name bitfield-name
-  (bind# (make-hash-table) :type hash-table))
+  (bindings (make-hash-table) :type hash-table)
+  (byte nil))
 
 (defmethod make-load-form ((o environment) &optional env)
   (make-load-form-saving-slots o :environment env))
 
 (defun env-empty-p (env)
-  (zerop (hash-table-count (env-bind# env))))
+  (zerop (hash-table-count (env-bindings env))))
 
-(defun mkenv (space-name bitfield-name)
-  (make-environment :space-name space-name :bitfield-name bitfield-name
-		    :bind# (if (or (null space-name) (null bitfield-name)) (make-hash-table)
-			       (bitfield-byteval# (bitfield (space space-name) bitfield-name)))))
-  
-(defun var (env name)
+(defun mkenv (space-name bitfield-name &aux (bitfield (bitfield (space space-name) bitfield-name)))
+  (make-environment
+   :byte (bitfield-spec bitfield)
+   :bindings
+   (if (or (null space-name) (null bitfield-name))
+       (make-hash-table)
+       (xform-hash-table #'flatten-byteval (bitfield-byteval# bitfield)))))
+
+(defun sym-value (env symbol)
   (declare (type symbol name) (type environment env))
-  (multiple-value-bind (val exist-p) (gethash name (env-bind# env))
+  (multiple-value-bind (value exist-p) (gethash symbol (env-bindings env))
     (unless exist-p
-      (error "Unbound var ~S in ~S." name env))
-    (dpb (byteval-value val) (byteval-byte val) 0)))
+      (error "~@<Symbol ~S is not bound in ~S.~:@>" symbol env))
+    value))
 
-;; this is _insanely_ error-prone... (though easy to control, since its uses are limited)
-(defun val (env val)
+(defun clamp-val-to-env (env val)
   (declare (type (or null environment) env) (type (unsigned-byte 32) val))
-  (dpb val (bitfield-spec (bitfield (space (env-space-name env)) (env-bitfield-name env))) 0))
+  (dpb val (env-byte env) 0))
 
 (defun eval-atom (form mask env)
   (declare (type (or number boolean keyword) form) (type integer mask)
 	   (type (or null environment) env))
   (etypecase form
-    (number (logand mask (if env (val env form) form)))
+    (number (logand mask (if env (clamp-val-to-env env form) form)))
     (null 0)
     ((eql t) mask)
-    (keyword (logand mask (var env form)))))
+    (keyword (logand mask (sym-value env form)))))
   
 (defun neval (form &optional bitmasks envs)
   (flet ((emit-deferred-form (&aux (bitmask (or (car bitmasks) -1)))
