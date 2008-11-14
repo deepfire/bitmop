@@ -29,15 +29,17 @@
    (documentation :accessor space-documentation :type string :initarg :documentation)
    (implemented-by :accessor space-implemented-by :type (or space list) :initarg :implemented-by)
    (referrers :accessor space-referrers :initform nil :type list)
-   (device# :accessor space-device# :initform (make-hash-table :test 'equal) :type hash-table)
-   (devicetype# :accessor space-devicetype# :initform (make-hash-table) :type hash-table)
-   (regformat# :accessor space-regformat# :initform (make-hash-table) :type hash-table)
-   (layout# :accessor space-layout# :initform (make-hash-table) :type hash-table)
-   (bankmap# :accessor space-bankmap# :initform (make-hash-table) :type hash-table)
-   (bank# :accessor space-bank# :initform (make-hash-table) :type hash-table)
-   (reg# :accessor space-reg# :initform (make-hash-table) :type hash-table)
-   (bitfield# :accessor space-bitfield# :initform (make-hash-table) :type hash-table)
-   (bitfield-byte# :accessor space-bitfield-byte# :initform (make-hash-table) :type hash-table))
+
+   (devices :accessor space-devices :initform (make-hash-table :test 'equal) :type hash-table)
+   (devicetypes :accessor space-devicetypes :initform (make-hash-table) :type hash-table)
+   (formats :accessor space-formats :initform (make-hash-table) :type hash-table)
+   (layouts :accessor space-layouts :initform (make-hash-table) :type hash-table)
+   (bankmaps :accessor space-bankmaps :initform (make-hash-table) :type hash-table)
+   (banks :accessor space-banks :initform (make-hash-table) :type hash-table)
+   (regs :accessor space-regs :initform (make-hash-table) :type hash-table)
+   (bitfields :accessor space-bitfields :initform (make-hash-table) :type hash-table)
+   (bitfield-bytes :accessor space-bitfield-bytes :initform (make-hash-table) :type hash-table)
+   )
   (:default-initargs :implemented-by nil))
 
 (defun space-root (space)
@@ -52,14 +54,14 @@
 (defstruct (spaced (:include docunamed))
   (space nil :type (or null space)))
 
-(defstruct (regformat (:include spaced))
+(defstruct (format (:include spaced))
   bitfields)
 
 (defstruct (bitfield (:include spaced))
-  regformat
+  format
   spec
-  (byteval# (make-hash-table) :type hash-table)
-  (byterevval# (make-hash-table) :type hash-table))
+  (bytevals (make-hash-table) :type hash-table)
+  (byterevvals (make-hash-table) :type hash-table))
 
 (defstruct (layout (:include spaced))
   "Maps register names into register structures."
@@ -75,8 +77,8 @@
 (defstruct (bank (:include spaced)
                  (:print-object
                   (lambda (obj stream)
-                    (format stream "~@<#<BANK~; :name ~S :documentation ~S~;>~:@>"
-                            (bank-name obj) (bank-documentation obj)))))
+                    (cl:format stream "~@<#<BANK~; :name ~S :documentation ~S~;>~:@>"
+                               (bank-name obj) (bank-documentation obj)))))
   "Augments register layouts with an access method."
   layout
   getter setter
@@ -105,33 +107,33 @@
   (list (type-of device) (device-id device)))
 
 (defmethod print-object ((space space) stream)
-  (format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S regformats: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
-	  (space-name space)
-	  (space-documentation space) (if (listp (space-implemented-by space))
-					  (space-implemented-by space)
-					  (space-name (space-implemented-by space)))
-	  (loop :for x :being :the :hash-values :in (space-regformat# space) :collect (regformat-name x))
-	  (loop :for x :being :the :hash-values :in (space-bank# space) :collect (bank-name x))
-	  (loop :for x :being :the :hash-values :in (space-reg# space) :collect (reg-name x))
-	  (loop :for x :being :the :hash-values :in (space-device# space) :collect (device-hash-id x))
-	  (loop :for x :being :the :hash-values :in (space-bankmap# space)
-                                                :using (hash-key k) :collect (list k x))
-	  (loop :for x :being :the :hash-values :in (space-layout# space) :collect (layout-name x))))
+  (cl:format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S formats: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
+             (space-name space)
+             (space-documentation space) (if (listp (space-implemented-by space))
+                                             (space-implemented-by space)
+                                             (space-name (space-implemented-by space)))
+             (loop :for x :being :the :hash-values :in (space-formats space) :collect (format-name x))
+             (loop :for x :being :the :hash-values :in (space-banks space) :collect (bank-name x))
+             (loop :for x :being :the :hash-values :in (space-regs space) :collect (reg-name x))
+             (loop :for x :being :the :hash-values :in (space-devices space) :collect (device-hash-id x))
+             (loop :for x :being :the :hash-values :in (space-bankmaps space)
+                                                   :using (hash-key k) :collect (list k x))
+             (loop :for x :being :the :hash-values :in (space-layouts space) :collect (layout-name x))))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
-    (format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
+    (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
 
 (defun device-insert (space device)
   (lret* ((type (type-of device))
-          (id (length (gethash type (space-devicetype# space)))))
-    (push device (gethash type (space-devicetype# space)))
+          (id (length (gethash type (space-devicetypes space)))))
+    (push device (gethash type (space-devicetypes space)))
     (setf (device-id device) id
           (device-space device) space
-          (gethash (list type id) (space-device# space)) device)))
+          (gethash (list type id) (space-devices space)) device)))
 
 (defun space-device (space type id)
-  (let ((bucket (gethash type (space-devicetype# space))))
+  (let ((bucket (gethash type (space-devicetypes space))))
     (find id bucket :key #'device-id)))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
@@ -140,12 +142,12 @@
 (defgeneric space-remove-device (device)
   (:method ((device device))
     (let ((space (device-space device)))
-      (remhash (device-hash-id device) (space-device# space))
-      (removef (gethash (type-of device) (space-devicetype# space)) device))))
+      (remhash (device-hash-id device) (space-devices space))
+      (removef (gethash (type-of device) (space-devicetypes space)) device))))
 
 (defun purge-namespace-devices (space)
-  (clrhash (space-device# space))
-  (clrhash (space-devicetype# space)))
+  (clrhash (space-devices space))
+  (clrhash (space-devicetypes space)))
 
 (define-condition bit-notation-condition (error) ())
 
@@ -153,17 +155,17 @@
   ()
   (:report (lambda (condition stream)
 	     (declare (ignorable condition))
-	     (format stream "Attempt to use names in a null space context."))))
+	     (cl:format stream "Attempt to use names in a null space context."))))
 
 (define-condition bit-notation-unknown-object-error (bit-notation-condition)
   ((object-type :reader bit-notation-condition-object-type :initarg :object-type)
    (object-name :reader bit-notation-condition-object-name :initarg :object-name)
    (object-container :reader bit-notation-condition-object-container :initarg :object-container))
   (:report (lambda (condition stream)
-	     (format stream "Reference to an unknown ~A ~S in space ~S."
-		     (string-downcase (string (bit-notation-condition-object-type condition)))
-		     (bit-notation-condition-object-name condition)
-		     (bit-notation-condition-object-container condition)))))
+	     (cl:format stream "Reference to an unknown ~A ~S in space ~S."
+                        (string-downcase (string (bit-notation-condition-object-type condition)))
+                        (bit-notation-condition-object-name condition)
+                        (bit-notation-condition-object-container condition)))))
 
 (defvar *spaces* (make-hash-table :test #'equal))
 
@@ -177,39 +179,40 @@
 	   (error 'bit-notation-unknown-object-error :object-type ,object-type :object-name ,name-var :object-container (,container-name-accessor ,container-var)))
 	 ,(if mutator `(,mutator ,object-var) object-var)))))
 
-(define-accessor regformat space-regformat# :regformat space-name)
-(define-accessor bank space-bank# :bank space-name)
-(define-accessor layout space-layout# :layout space-name)
-(define-accessor register space-reg# :register space-name)
-(define-accessor bitfield-byte space-bitfield-byte# :bitfield space-name)
-(define-accessor bitfield space-bitfield# :bitfield space-name)
-(define-accessor bitfield-format space-bitfield# :bitfield space-name bitfield-regformat)
-(define-accessor bitfield-documentation space-bitfield# :bitfield space-name bitfield-documentation)
-(define-accessor byteval bitfield-byteval# :byteval bitfield-name)
+(define-accessor format space-formats :format space-name)
+(define-accessor layout space-layouts :layout space-name)
+(define-accessor bank space-banks :bank space-name)
+(define-accessor register space-regs :register space-name)
+(define-accessor bitfield-byte space-bitfield-bytes :bitfield space-name)
+(define-accessor bitfield space-bitfields :bitfield space-name)
+(define-accessor bitfield-format space-bitfields :bitfield space-name bitfield-format)
+(define-accessor bitfield-documentation space-bitfields :bitfield space-name bitfield-documentation)
+
+(define-accessor byteval bitfield-bytevals :byteval bitfield-name)
   
 (defun register-format-field-type (name)
   (format-symbol t "~A-BITFIELD" name))
 
-(defun define-bitfield (regformat name size pos doc &optional bytevals)
+(defun define-bitfield (format name size pos doc &optional bytevals)
   (let* ((byte (byte size pos))
-	 (space (regformat-space regformat))
-	 (bitfield (make-bitfield :regformat regformat :name name :spec byte :documentation doc)))
-    (when (gethash name (space-bitfield# space))
+	 (space (format-space format))
+	 (bitfield (make-bitfield :format format :name name :spec byte :documentation doc)))
+    (when (gethash name (space-bitfields space))
       (error "Attempt to redefine as existing bitfield ~S in namespace ~S~%" name (space-name space)))
-    (push bitfield (regformat-bitfields regformat))
+    (push bitfield (format-bitfields format))
     (loop :for (value name documentation) :in bytevals
                                           :do (let ((byteval (make-byteval :name name :documentation documentation :byte byte :value value)))
-                                                (setf (gethash name (bitfield-byteval# bitfield)) byteval
-                                                      (gethash value (bitfield-byterevval# bitfield)) byteval)))
+                                                (setf (gethash name (bitfield-bytevals bitfield)) byteval
+                                                      (gethash value (bitfield-byterevvals bitfield)) byteval)))
     (dolist (space (list* space (mapcar #'space (space-referrers space))))
-      (setf (gethash name (space-bitfield-byte# space)) byte
-	    (gethash name (space-bitfield# space)) bitfield))))
+      (setf (gethash name (space-bitfield-bytes space)) byte
+	    (gethash name (space-bitfields space)) bitfield))))
 
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
-  (let ((format (make-regformat :name name :documentation documentation :space space)))
+  (let ((format (make-format :name name :documentation documentation :space space)))
     (mapc [apply [define-bitfield format]] bitspecs)
-    (setf (gethash name (space-regformat# space)) format)))
+    (setf (gethash name (space-formats space)) format)))
 
 (defmacro define-register-format (&environment env name doc &rest bitspecs)
   `(eval-when (:compile-toplevel :load-toplevel)
@@ -217,19 +220,19 @@
      (define-register-format-notype (space ,(space-name (space (space-name-context env)))) ',name ,doc ',bitspecs)))
   
 (defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
-  (when (gethash name (space-reg# (layout-space layout)))
+  (when (gethash name (space-regs (layout-space layout)))
     (error "Attempt to redefine register ~S in namespace ~S."
 	   name (space-name (layout-space layout))))
   (let ((register (make-reg :layout layout :name name :selector selector :documentation doc
-                                                                         :format (when format (regformat (layout-space layout) format)) :ext ext
+                                                                         :format (when format (format (layout-space layout) format)) :ext ext
                                                                          :type (register-format-field-type format))))
     (push register (layout-registers layout))
-    (setf (gethash name (space-reg# (layout-space layout))) register)))
+    (setf (gethash name (space-regs (layout-space layout))) register)))
 
 (defun define-layout-notype (space name documentation regspecs)
   (let ((layout (make-layout :name name :space space :documentation documentation)))
     (mapc [apply [define-register layout]] regspecs)
-    (setf (gethash name (space-layout# space)) layout)))
+    (setf (gethash name (space-layouts space)) layout)))
 
 (defmacro define-layout (&environment env (name doc) &rest defs)
   `(progn
@@ -238,17 +241,17 @@
 	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ',defs)))
 
 (defun bank-try-claim-layout (space bank layout)
-  (let* ((regs (loop :for reg :being :the :hash-values :in (space-reg# space)
+  (let* ((regs (loop :for reg :being :the :hash-values :in (space-regs space)
                                                        :when (eq (reg-layout reg) layout) :collect reg)))
     (when regs
-      (case (gethash (reg-name (first regs)) (space-bankmap# space))
+      (case (gethash (reg-name (first regs)) (space-bankmaps space))
 	((t) nil)
 	((nil) (dolist (reg regs)
-		 (setf (gethash (reg-name reg) (space-bankmap# space)) bank)))
+		 (setf (gethash (reg-name reg) (space-bankmaps space)) bank)))
 	(t (dolist (reg regs)
-	     (setf (gethash (reg-name reg) (space-bankmap# space)) t)))))))
+	     (setf (gethash (reg-name reg) (space-bankmaps space)) t)))))))
       
-(defmacro define-bank-accessor (&environment env name layout-name accessor doc &key pass-register write-only)
+(defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only)
   `(progn
      (eval-when (:compile-toplevel :load-toplevel)
        (let* ((space (space ',(space-name (space (space-name-context env)))))
@@ -256,10 +259,10 @@
               (home-space (layout-space layout))
               (bank (make-bank :name ',name :space home-space :layout layout :documentation ,doc
                                                                              :write-only ,write-only :pass-register ,pass-register)))
-         (setf (gethash ',name (space-bank# home-space)) bank)
+         (setf (gethash ',name (space-banks home-space)) bank)
          (bank-try-claim-layout home-space bank layout)
          (unless (eq space home-space)
-           (setf (gethash ',name (space-bank# space)) bank)
+           (setf (gethash ',name (space-banks space)) bank)
            (bank-try-claim-layout space bank layout))))
      (eval-when (:load-toplevel)
        (let* ((space (space ',(space-name (space (space-name-context env)))))
@@ -273,10 +276,10 @@
            (setf (bank-setter bank) (fdefinition (list 'setf ,accessor))))))))
 
 (defun register-unambiguous-bank (space regname)
-  (let ((spec (gethash regname (space-bankmap# space))))
+  (let ((spec (gethash regname (space-bankmaps space))))
     (case spec
       ((nil)
-       (when (gethash regname (space-reg# space))
+       (when (gethash regname (space-regs space))
 	 (error "Register ~S is hashed in space ~S, but has no associated bank." regname space))
        (error "Unknown register ~S in space ~S." regname space))
       ((t) nil)
@@ -321,8 +324,8 @@
 (defun unify-namespaces (names)
   (let* ((spaces (mapcar #'space names))
 	 (unispace (make-instance 'space :name names
-					 :documentation (format nil "Unified namespace of:~{ ~S~}."
-								(mapcar #'space-documentation spaces))
+					 :documentation (cl:format nil "Unified namespace of:~{ ~S~}."
+                                                                   (mapcar #'space-documentation spaces))
 					 :implemented-by spaces)))
     (labels ((check-import-unispace (accessor-name key val)
 	       (let* ((accessor-fn (fdefinition accessor-name))
@@ -332,8 +335,8 @@
 		 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
-	(dolist (accessor-name '(space-bank# space-reg# space-regformat# space-bitfield# space-bitfield-byte#
-				 space-layout# space-bankmap#))
+	(dolist (accessor-name '(space-banks space-regs space-formats space-bitfields space-bitfield-bytes
+				 space-layouts space-bankmaps))
 	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
 	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
     (setf (space names) unispace)))
@@ -370,9 +373,9 @@
 
 (defun bitfield-decode (bitfield value &key (symbolise-unknowns t))
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
-  (cond ((plusp (hash-table-count (bitfield-byteval# bitfield))) ;; bitfield-enumerated-p?
+  (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
 	 (let* ((val (ldb (bitfield-spec bitfield) value)))
-	   (if-let ((field (gethash val (bitfield-byterevval# bitfield))))
+	   (if-let ((field (gethash val (bitfield-byterevvals bitfield))))
 		   (byteval-name field)
                    (if symbolise-unknowns
                        (format-symbol :keyword "UNKNOWN-VALUE-~B" val)
@@ -383,8 +386,8 @@
 	 (ldb-test (bitfield-spec bitfield) value))))
 
 (defun format-decode (format value &key (symbolise-unknowns t))
-  (declare (type regformat format) (type (unsigned-byte 32) value))
-  (iter (for bitfield in (regformat-bitfields format))
+  (declare (type format format) (type (unsigned-byte 32) value))
+  (iter (for bitfield in (format-bitfields format))
         (collect (cons (bitfield-name bitfield) (bitfield-decode bitfield value :symbolise-unknowns symbolise-unknowns)))))
 
 (defun bytenames-ensure-same-register (space regname bytenames)
@@ -393,7 +396,7 @@
 		 (bitfield-format space (first bytenames)))))
     (if-let ((stray (find-if-not {[eq fmt] [bitfield-format space]} bytenames)))
 	    (error "Ambiguous multiregister access: ~S vs. ~S:~S"
-		   (regformat-name fmt) (regformat-name (bitfield-format space stray)) stray))))
+		   (format-name fmt) (format-name (bitfield-format space stray)) stray))))
 
 (defun mkenv (space-name bitfield-name &aux (bitfield (bitfield (space space-name) bitfield-name)))
   (make-environment
@@ -401,7 +404,7 @@
    :bindings
    (if (or (null space-name) (null bitfield-name))
        (make-hash-table)
-       (xform-hash-table #'flatten-byteval (bitfield-byteval# bitfield)))))
+       (xform-hash-table #'flatten-byteval (bitfield-bytevals bitfield)))))
 
 (defmacro decode-context-with-bitfields ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
   (let ((space (or space-want (gensym))) (bank (and regname bank-want)) (newbytenames (gensym)))
@@ -410,7 +413,7 @@
             ,@(when bitfield `((,bitfield (bitfield ,space (car ,newbytenames)))))
             ,@(when bank `((,bank (register-bank-name ,space ,regname (bank-context ,env)))))
             ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
-                                                              (regformat-name format)))))))
+                                                              (format-name format)))))))
        (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank)) ,newbytenames))
        (bytenames-ensure-same-register ,space ,regname ,newbytenames)
        ,@(when bank
@@ -426,7 +429,7 @@
     `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
             ,@(when bank `((,bank (register-bank-name ,space ,regname (bank-context ,env)))))
             ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
-                                                              (regformat-name format)))))))
+                                                              (format-name format)))))))
        (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank))))
        ,@(when bank
                `((unless (or (register-unambiguous-bank ,space ,regname)
@@ -465,8 +468,8 @@
 (defmacro decode (&environment env fmtname value &key (symbolise-unknowns t))
   (decode-context (space-name) nil () env
     (if (constant-p fmtname) ;; we won't do the same for other obvious cases
-        `(format-decode (load-time-value (regformat (space ',space-name) ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
-        `(format-decode (regformat (space ',space-name) ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns))))
+        `(format-decode (load-time-value (format (space ',space-name) ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
+        `(format-decode (format (space ',space-name) ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns))))
 
 (defmacro devbit-decode (&environment env device regname bytename)
   (decode-context (space-name bankname space bitfield) regname `(,bytename) env
@@ -476,7 +479,7 @@
 
 (defmacro devreg-decode (&environment env device regname)
   (decode-context (space-name bankname space bitfield fmtname) regname () env
-    `(format-decode (load-time-value (regformat (space ',space-name) ,fmtname))
+    `(format-decode (load-time-value (format (space ',space-name) ,fmtname))
 		    (device-register ,device (load-time-value (bank (space ',space-name) ,bankname))
 				     (load-time-value (register (space ',space-name) ,regname))))))
 
