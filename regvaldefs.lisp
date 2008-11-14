@@ -289,6 +289,12 @@
   `(symbol-macrolet ((*banks* ,rsnames))
      ,@body))
 
+;;;
+;;;  o  layout templates
+;;;  o  register instantiation
+;;;;    - what information is deduced from register instances /now/?
+;;;;      ... survey
+;;;
 (defmacro define-namespace (name &body f)
   (let ((implemented-by (cadr (assoc :implemented-by f)))
 	(documentation (cadr (assoc :documentation f))))
@@ -375,6 +381,11 @@
   (iter (for bitfield in (format-bitfields format))
         (collect (cons (name bitfield) (bitfield-decode bitfield value :symbolise-unknowns symbolise-unknowns)))))
 
+;;;;
+;;;;
+;;;;  F R O N T E N D
+;;;;
+;;;;
 (defun bytenames-ensure-same-register (space regname bytenames)
   "Deduce register difference from register format difference and signal an error, if any."
   (let ((fmt (if regname (reg-format (register space regname))
