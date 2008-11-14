@@ -70,8 +70,8 @@
 
 (set-namespace :foo :bar)
 
-(define-register-set-accessor :foo :foo 'testreg "foo regset")
-(define-register-set-accessor :bar :bar 'testreg "bar regset")
+(define-register-set-accessor :foo :foo 'testreg "foo bank")
+(define-register-set-accessor :bar :bar 'testreg "bar bank")
 
 (defparameter tdev (make-instance 'test-device))
 

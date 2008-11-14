@@ -33,8 +33,8 @@
    (devicetype# :accessor space-devicetype# :initform (make-hash-table) :type hash-table)
    (regformat# :accessor space-regformat# :initform (make-hash-table) :type hash-table)
    (layout# :accessor space-layout# :initform (make-hash-table) :type hash-table)
-   (regsetmap# :accessor space-regsetmap# :initform (make-hash-table) :type hash-table)
-   (regset# :accessor space-regset# :initform (make-hash-table) :type hash-table)
+   (bankmap# :accessor space-bankmap# :initform (make-hash-table) :type hash-table)
+   (bank# :accessor space-bank# :initform (make-hash-table) :type hash-table)
    (reg# :accessor space-reg# :initform (make-hash-table) :type hash-table)
    (bitfield# :accessor space-bitfield# :initform (make-hash-table) :type hash-table)
    (bitfield-byte# :accessor space-bitfield-byte# :initform (make-hash-table) :type hash-table))
@@ -72,11 +72,11 @@
   selector
   type ext)
 
-(defstruct (regset (:include spaced)
+(defstruct (bank (:include spaced)
                    (:print-object
 		    (lambda (obj stream)
-		      (format stream "~@<#<REGSET~; :name ~S :documentation ~S~;>~:@>"
-			      (regset-name obj) (regset-documentation obj)))))
+		      (format stream "~@<#<BANK~; :name ~S :documentation ~S~;>~:@>"
+			      (bank-name obj) (bank-documentation obj)))))
   "Augments register layouts with an access method."
   layout
   getter setter
@@ -105,16 +105,16 @@
   (list (type-of device) (device-id device)))
 
 (defmethod print-object ((space space) stream)
-  (format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S regformats: ~S regsets: ~S registers: ~S devices: ~S regsetmap: ~S layouts: ~S~;>~:@>"
+  (format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S regformats: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
 	  (space-name space)
 	  (space-documentation space) (if (listp (space-implemented-by space))
 					  (space-implemented-by space)
 					  (space-name (space-implemented-by space)))
 	  (loop :for x :being :the :hash-values :in (space-regformat# space) :collect (regformat-name x))
-	  (loop :for x :being :the :hash-values :in (space-regset# space) :collect (regset-name x))
+	  (loop :for x :being :the :hash-values :in (space-bank# space) :collect (bank-name x))
 	  (loop :for x :being :the :hash-values :in (space-reg# space) :collect (reg-name x))
 	  (loop :for x :being :the :hash-values :in (space-device# space) :collect (device-hash-id x))
-	  (loop :for x :being :the :hash-values :in (space-regsetmap# space)
+	  (loop :for x :being :the :hash-values :in (space-bankmap# space)
 	     :using (hash-key k) :collect (list k x))
 	  (loop :for x :being :the :hash-values :in (space-layout# space) :collect (layout-name x))))
 
@@ -178,7 +178,7 @@
 	 ,(if mutator `(,mutator ,object-var) object-var)))))
 
 (define-accessor regformat space-regformat# :regformat space-name)
-(define-accessor register-set space-regset# :register-set space-name)
+(define-accessor register-set space-bank# :register-set space-name)
 (define-accessor register-layout space-layout# :register-layout space-name)
 (define-accessor register space-reg# :register space-name)
 (define-accessor bitfield-byte space-bitfield-byte# :bitfield space-name)
@@ -237,16 +237,16 @@
      (define-register-layout-notype
 	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ',defs)))
 
-(defun register-set-try-claim-register-layout (space regset layout)
+(defun register-set-try-claim-register-layout (space bank layout)
   (let* ((regs (loop :for reg :being :the :hash-values :in (space-reg# space)
 		  :when (eq (reg-layout reg) layout) :collect reg)))
     (when regs
-      (case (gethash (reg-name (first regs)) (space-regsetmap# space))
+      (case (gethash (reg-name (first regs)) (space-bankmap# space))
 	((t) nil)
 	((nil) (dolist (reg regs)
-		 (setf (gethash (reg-name reg) (space-regsetmap# space)) regset)))
+		 (setf (gethash (reg-name reg) (space-bankmap# space)) bank)))
 	(t (dolist (reg regs)
-	     (setf (gethash (reg-name reg) (space-regsetmap# space)) t)))))))
+	     (setf (gethash (reg-name reg) (space-bankmap# space)) t)))))))
       
 (defmacro define-register-set-accessor (&environment env name layout-name accessor doc &key pass-register write-only)
   `(progn
@@ -254,50 +254,50 @@
        (let* ((space (space ',(space-name (space (space-name-context env)))))
               (layout (register-layout space ',layout-name))
               (home-space (layout-space layout))
-              (regset (make-regset :name ',name :space home-space :layout layout :documentation ,doc
+              (bank (make-bank :name ',name :space home-space :layout layout :documentation ,doc
                                                                                  :write-only ,write-only :pass-register ,pass-register)))
-         (setf (gethash ',name (space-regset# home-space)) regset)
-         (register-set-try-claim-register-layout home-space regset layout)
+         (setf (gethash ',name (space-bank# home-space)) bank)
+         (register-set-try-claim-register-layout home-space bank layout)
          (unless (eq space home-space)
-           (setf (gethash ',name (space-regset# space)) regset)
-           (register-set-try-claim-register-layout space regset layout))))
+           (setf (gethash ',name (space-bank# space)) bank)
+           (register-set-try-claim-register-layout space bank layout))))
      (eval-when (:load-toplevel)
        (let* ((space (space ',(space-name (space (space-name-context env)))))
-              (regset (register-set space ',name)))
+              (bank (register-set space ',name)))
          (unless (or (fboundp ,accessor)
                      (fboundp (list 'setf ,accessor)))
            (error "No functions available for register set accessor ~S." ',name))
          (when (fboundp ,accessor)
-           (setf (regset-getter regset) (fdefinition ,accessor)))
+           (setf (bank-getter bank) (fdefinition ,accessor)))
          (when (fboundp (list 'setf ,accessor))
-           (setf (regset-setter regset) (fdefinition (list 'setf ,accessor))))))))
+           (setf (bank-setter bank) (fdefinition (list 'setf ,accessor))))))))
 
-(defun register-unambiguous-regset (space regname)
-  (let ((spec (gethash regname (space-regsetmap# space))))
+(defun register-unambiguous-bank (space regname)
+  (let ((spec (gethash regname (space-bankmap# space))))
     (case spec
       ((nil)
        (when (gethash regname (space-reg# space))
-	 (error "Register ~S is hashed in space ~S, but has no associated regset." regname space))
+	 (error "Register ~S is hashed in space ~S, but has no associated bank." regname space))
        (error "Unknown register ~S in space ~S." regname space))
       ((t) nil)
       (t spec))))
 
-(defun register-regset-name (space regname disambiguation)
+(defun register-bank-name (space regname disambiguation)
   (declare (type space space) (type symbol regname) (type list disambiguation))
-  (regset-name
-   (or (register-unambiguous-regset space regname)
+  (bank-name
+   (or (register-unambiguous-bank space regname)
        (find (reg-layout (register space regname))
-	     (mapcar [register-set space] disambiguation) :key #'regset-layout)
+	     (mapcar [register-set space] disambiguation) :key #'bank-layout)
        (error "Ambiguous access method for register ~S space ~S." regname space))))
 
-(defun regset-context (env)
-  (multiple-value-bind (val expanded-p) (macroexpand-1 '*regsets* env)
+(defun bank-context (env)
+  (multiple-value-bind (val expanded-p) (macroexpand-1 '*banks* env)
     (when expanded-p val)))
 
 (defmacro with-register-sets (&environment env (&rest rsnames) &body body)
   (if-let ((orphan (find-if-not [register-set (space (space-name-context env))] rsnames)))
 	  (error "Reference to an undefined register set ~S." orphan))
-  `(symbol-macrolet ((*regsets* ,rsnames))
+  `(symbol-macrolet ((*banks* ,rsnames))
      ,@body))
 
 (defmacro define-namespace (name &body f)
@@ -331,8 +331,8 @@
 		 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
-	(dolist (accessor-name '(space-regset# space-reg# space-regformat# space-bitfield# space-bitfield-byte#
-				 space-layout# space-regsetmap#))
+	(dolist (accessor-name '(space-bank# space-reg# space-regformat# space-bitfield# space-bitfield-byte#
+				 space-layout# space-bankmap#))
 	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
 	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
     (setf (space names) unispace)))
@@ -402,62 +402,62 @@
        (make-hash-table)
        (xform-hash-table #'flatten-byteval (bitfield-byteval# bitfield)))))
 
-(defmacro decode-context-with-bitfields ((spacename &optional regset-want space-want bitfield fmtname) regname bytenames env &body body)
-  (let ((space (or space-want (gensym))) (regset (and regname regset-want)) (newbytenames (gensym)))
+(defmacro decode-context-with-bitfields ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
+  (let ((space (or space-want (gensym))) (bank (and regname bank-want)) (newbytenames (gensym)))
     `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
             (,newbytenames (ensure-list ,bytenames))
             ,@(when bitfield `((,bitfield (bitfield ,space (car ,newbytenames)))))
-            ,@(when regset `((,regset (register-regset-name ,space ,regname (regset-context ,env)))))
+            ,@(when bank `((,bank (register-bank-name ,space ,regname (bank-context ,env)))))
             ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
                                                               (regformat-name format)))))))
-       (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when regset `(,regset)) ,newbytenames))
+       (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank)) ,newbytenames))
        (bytenames-ensure-same-register ,space ,regname ,newbytenames)
-       ,@(when regset
-               `((unless (or (register-unambiguous-regset ,space ,regname)
-                             (null (regset-context ,env))
-                             (member (regset-name (register-set ,space ,regset)) (regset-context ,env)))
-                   (error "regset context compilation error: mapped ~S to ~S, while ~S were available"
-                          ,regname (regset-name (register-set ,space ,regset)) (regset-context ,env)))))
+       ,@(when bank
+               `((unless (or (register-unambiguous-bank ,space ,regname)
+                             (null (bank-context ,env))
+                             (member (bank-name (register-set ,space ,bank)) (bank-context ,env)))
+                   (error "bank context compilation error: mapped ~S to ~S, while ~S were available"
+                          ,regname (bank-name (register-set ,space ,bank)) (bank-context ,env)))))
        ,@body)))
 
-(defmacro decode-context-without-bitfields ((spacename &optional regset-want space-want fmtname) regname env &body body)
-  (let ((space (or space-want (gensym))) (regset (and regname regset-want)))
+(defmacro decode-context-without-bitfields ((spacename &optional bank-want space-want fmtname) regname env &body body)
+  (let ((space (or space-want (gensym))) (bank (and regname bank-want)))
     `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
-            ,@(when regset `((,regset (register-regset-name ,space ,regname (regset-context ,env)))))
+            ,@(when bank `((,bank (register-bank-name ,space ,regname (bank-context ,env)))))
             ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
                                                               (regformat-name format)))))))
-       (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when regset `(,regset))))
-       ,@(when regset
-               `((unless (or (register-unambiguous-regset ,space ,regname)
-                             (null (regset-context ,env))
-                             (member (regset-name (register-set ,space ,regset)) (regset-context ,env)))
-                   (error "regset context compilation error: mapped ~S to ~S, while ~S were available"
-                          ,regname (regset-name (register-set ,space ,regset)) (regset-context ,env)))))
+       (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank))))
+       ,@(when bank
+               `((unless (or (register-unambiguous-bank ,space ,regname)
+                             (null (bank-context ,env))
+                             (member (bank-name (register-set ,space ,bank)) (bank-context ,env)))
+                   (error "bank context compilation error: mapped ~S to ~S, while ~S were available"
+                          ,regname (bank-name (register-set ,space ,bank)) (bank-context ,env)))))
        ,@body)))
 
-(defmacro decode-context ((spacename &optional regset-want space-want bitfield fmtname) regname bytenames env &body body)
+(defmacro decode-context ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
   (if bytenames
-      `(decode-context-with-bitfields (,spacename ,regset-want ,space-want ,bitfield ,fmtname) ,regname ,bytenames ,env ,@body)
-      `(decode-context-without-bitfields (,spacename ,regset-want ,space-want ,fmtname) ,regname ,env ,@body)))
+      `(decode-context-with-bitfields (,spacename ,bank-want ,space-want ,bitfield ,fmtname) ,regname ,bytenames ,env ,@body)
+      `(decode-context-without-bitfields (,spacename ,bank-want ,space-want ,fmtname) ,regname ,env ,@body)))
 
-(defun device-register (device regset register)
+(defun device-register (device bank register)
   (declare (type device device) (type reg register))
-  (funcall (regset-getter regset)
-	   device (if (regset-pass-register regset) register (reg-selector register))))
+  (funcall (bank-getter bank)
+	   device (if (bank-pass-register bank) register (reg-selector register))))
 
-(defun (setf device-register) (value device regset register)
+(defun (setf device-register) (value device bank register)
   (declare (type (unsigned-byte 32) value) (type device device) (type reg register))
-  (funcall (regset-setter regset)
-	   value device (if (regset-pass-register regset) register (reg-selector register))))
+  (funcall (bank-setter bank)
+	   value device (if (bank-pass-register bank) register (reg-selector register))))
     
 (defmacro devreg (&environment env device regname)
-  (decode-context (space-name regsetname) regname () env
-    `(device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+  (decode-context (space-name bankname) regname () env
+    `(device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 		      (load-time-value (register (space ',space-name) ,regname)))))
 
 (define-setc-expander devreg (&environment env value device regname)
-  (decode-context (space-name regsetname) regname () env
-    `(setf (device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+  (decode-context (space-name bankname) regname () env
+    `(setf (device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 			    (load-time-value (register (space ',space-name) ,regname)))
 	   ,(eeval value))))
 
@@ -468,64 +468,64 @@
         `(format-decode (regformat (space ',space-name) ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns))))
 
 (defmacro devbit-decode (&environment env device regname bytename)
-  (decode-context (space-name regsetname space bitfield) regname `(,bytename) env
+  (decode-context (space-name bankname space bitfield) regname `(,bytename) env
     `(bitfield-decode (load-time-value (bitfield (space ',space-name) ,bytename))
-		      (device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+		      (device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 				       (load-time-value (register (space ',space-name) ,regname))))))
 
 (defmacro devreg-decode (&environment env device regname)
-  (decode-context (space-name regsetname space bitfield fmtname) regname () env
+  (decode-context (space-name bankname space bitfield fmtname) regname () env
     `(format-decode (load-time-value (regformat (space ',space-name) ,fmtname))
-		    (device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+		    (device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 				     (load-time-value (register (space ',space-name) ,regname))))))
 
 (defmacro devbit (&environment env device regname bytename)
-  (decode-context (space-name regsetname space) regname `(,bytename) env
+  (decode-context (space-name bankname space) regname `(,bytename) env
     `(ldb-test ',(bitfield-byte space bytename)
 	       (device-register
-		,device (load-time-value (register-set (space ',space-name) ,regsetname))
+		,device (load-time-value (register-set (space ',space-name) ,bankname))
 		(load-time-value (register (space ',space-name) ,regname))))))
   
 (defmacro devbit-value (&environment env device regname bytename)
-  (decode-context (space-name regsetname space) regname `(,bytename) env
+  (decode-context (space-name bankname space) regname `(,bytename) env
     `(ldb ',(bitfield-byte space bytename)
 	  (device-register
-	   ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+	   ,device (load-time-value (register-set (space ',space-name) ,bankname))
 	   (load-time-value (register (space ',space-name) ,regname))))))
 
 (define-setc-expander devbit (&environment env value device regname bytename &key write-only)
-  (decode-context (space-name regsetname space bitfield) regname `(,bytename) env
-    (let ((wronly (or write-only (regset-write-only (register-set space regsetname))))
+  (decode-context (space-name bankname space bitfield) regname `(,bytename) env
+    (let ((wronly (or write-only (bank-write-only (register-set space bankname))))
 	  (mask (byte-bitmask (bitfield-spec bitfield))))
-      `(setf (device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+      `(setf (device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 			      (load-time-value (register (space ',space-name) ,regname)))
 	     ,(eeval
 	       `(logior ,value
 			,(unless wronly
-				 `(device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+				 `(device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 						   (load-time-value (register (space ',space-name) ,regname)))))
 	       `(,mask ,(lognot mask))
 	       `(,(mkenv space-name (bitfield-name bitfield)) nil))))))
 
 (defmacro devbits (&environment env device regname (&rest bytenames))
-  (decode-context (space-name regsetname space bitfield) regname bytenames env
+  (decode-context (space-name bankname space bitfield) regname bytenames env
     `(values-list 
       (mapcar
        (rcurry #'ldb-test (device-register
-			   ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+			   ,device (load-time-value (register-set (space ',space-name) ,bankname))
 			   (load-time-value (register (space ',space-name) ,regname))))
        ',(mapcar [bitfield-byte space] bytenames)))))
 
 (define-setc-expander devbits (&environment env values device regname (&rest bytenames) &key write-only)
-  (decode-context (space-name regsetname space bitfield) regname bytenames env
-    (with-gensyms (device-var regset-var reg-var) 
-      (let* ((initial (unless (or write-only (regset-write-only (register-set space regsetname)))
-			`(device-register ,device-var ,regset-var ,reg-var)))
+  (decode-context (space-name bankname space bitfield) regname bytenames env
+    (with-gensyms (device-var bank-var reg-var) 
+      (let* ((initial (unless (or write-only (bank-write-only (register-set space bankname)))
+			`(device-register ,device-var ,bank-var ,reg-var)))
 	     (bytes (mapcar [bitfield-byte space] bytenames)))
 	`(let ((,device-var ,device)
-	       (,regset-var (load-time-value (register-set (space ',space-name) ,regsetname)))
+	       (,bank-var (load-time-value (register-set (space ',space-name) ,bankname)))
 	       (,reg-var (load-time-value (register (space ',space-name) ,regname))))
-	   (setf (device-register ,device-var ,regset-var ,reg-var)
+	   (setf (device-register ,device-var ,bank-var ,reg-var)
 		 ,(eeval (list* 'logior initial (ensure-destructurisation bytenames values))
 			 (list* (lognot (bytes-bitmask bytes)) (mapcar #'byte-bitmask bytes))
 			 (list* nil (mapcar [mkenv space-name] bytenames)))))))))
@@ -533,7 +533,7 @@
 (defmacro bits (&environment env bytenames &rest bytevals)
   "Combined bytevals of bitfields specified by BYTENAMES/BYTEVALS.
   Bytevals default to T, when left completely unspecified."
-  (decode-context (space-name regsetname space) nil bytenames env
+  (decode-context (space-name bankname space) nil bytenames env
     (let* ((bytenames (ensure-list bytenames))
 	   (bytevals (or bytevals (make-list (length bytenames) :initial-element t))))
       (eeval (list* 'logior bytevals)
@@ -543,10 +543,10 @@
 (defmacro test-devbits (&environment env device regname bytenames &rest bytevals)
   "Check if every bitfield among those specified by BYTENAMES is set to a value denoted by
    a corresponding member of BYTEVALS."
-  (decode-context (space-name regsetname space bitfield) nil bytenames env
+  (decode-context (space-name bankname space bitfield) nil bytenames env
     (let ((bytenames (ensure-list bytenames))
-	  (regsetname (register-regset-name space (reg-name (register space regname)) (regset-context env))))
-      `(= (logand (device-register ,device (load-time-value (register-set (space ',space-name) ,regsetname))
+	  (bankname (register-bank-name space (reg-name (register space regname)) (bank-context env))))
+      `(= (logand (device-register ,device (load-time-value (register-set (space ',space-name) ,bankname))
 				   (load-time-value (register (space ',space-name) ,regname)))
 		  ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
 	  (bits ,bytenames ,@bytevals)))))
@@ -557,5 +557,5 @@
     `(= (logand ,val ,mask) ,mask)))
 
 (defmacro bit-value (&environment env value bytename)
-  (decode-context (space-name regsetname space) nil `(,bytename) env
+  (decode-context (space-name bankname space) nil `(,bytename) env
     `(ldb ',(bitfield-byte space bytename) ,value)))
