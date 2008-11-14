@@ -32,11 +32,12 @@
 
    (devices :accessor space-devices :initform (make-hash-table :test 'equal) :type hash-table)
    (devicetypes :accessor space-devicetypes :initform (make-hash-table) :type hash-table)
+
    (formats :accessor space-formats :initform (make-hash-table) :type hash-table)
    (layouts :accessor space-layouts :initform (make-hash-table) :type hash-table)
    (bankmaps :accessor space-bankmaps :initform (make-hash-table) :type hash-table)
    (banks :accessor space-banks :initform (make-hash-table) :type hash-table)
-   (regs :accessor space-regs :initform (make-hash-table) :type hash-table)
+   (registers :accessor space-registers :initform (make-hash-table) :type hash-table)
    (bitfields :accessor space-bitfields :initform (make-hash-table) :type hash-table)
    (bitfield-bytes :accessor space-bitfield-bytes :initform (make-hash-table) :type hash-table)
    )
@@ -114,7 +115,7 @@
                                              (space-name (space-implemented-by space)))
              (loop :for x :being :the :hash-values :in (space-formats space) :collect (format-name x))
              (loop :for x :being :the :hash-values :in (space-banks space) :collect (bank-name x))
-             (loop :for x :being :the :hash-values :in (space-regs space) :collect (reg-name x))
+             (loop :for x :being :the :hash-values :in (space-registers space) :collect (reg-name x))
              (loop :for x :being :the :hash-values :in (space-devices space) :collect (device-hash-id x))
              (loop :for x :being :the :hash-values :in (space-bankmaps space)
                                                    :using (hash-key k) :collect (list k x))
@@ -182,7 +183,7 @@
 (define-accessor format space-formats :format space-name)
 (define-accessor layout space-layouts :layout space-name)
 (define-accessor bank space-banks :bank space-name)
-(define-accessor register space-regs :register space-name)
+(define-accessor register space-registers :register space-name)
 (define-accessor bitfield-byte space-bitfield-bytes :bitfield space-name)
 (define-accessor bitfield space-bitfields :bitfield space-name)
 (define-accessor bitfield-format space-bitfields :bitfield space-name bitfield-format)
@@ -220,18 +221,18 @@
      (define-register-format-notype (space ,(space-name (space (space-name-context env)))) ',name ,doc ',bitspecs)))
   
 (defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
-  (when (gethash name (space-regs (layout-space layout)))
+  (when (gethash name (space-registers (layout-space layout)))
     (error "Attempt to redefine register ~S in namespace ~S."
 	   name (space-name (layout-space layout))))
   (let ((register (make-reg :layout layout :name name :selector selector :documentation doc
                                                                          :format (when format (format (layout-space layout) format)) :ext ext
                                                                          :type (register-format-field-type format))))
     (push register (layout-registers layout))
-    (setf (gethash name (space-regs (layout-space layout))) register)))
+    (setf (gethash name (space-registers (layout-space layout))) register)))
 
-(defun define-layout-notype (space name documentation regspecs)
+(defun define-layout-notype (space name documentation registerspecs)
   (let ((layout (make-layout :name name :space space :documentation documentation)))
-    (mapc [apply [define-register layout]] regspecs)
+    (mapc [apply [define-register layout]] registerspecs)
     (setf (gethash name (space-layouts space)) layout)))
 
 (defmacro define-layout (&environment env (name doc) &rest defs)
@@ -241,14 +242,14 @@
 	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ',defs)))
 
 (defun bank-try-claim-layout (space bank layout)
-  (let* ((regs (loop :for reg :being :the :hash-values :in (space-regs space)
+  (let* ((registers (loop :for reg :being :the :hash-values :in (space-registers space)
                                                        :when (eq (reg-layout reg) layout) :collect reg)))
-    (when regs
-      (case (gethash (reg-name (first regs)) (space-bankmaps space))
+    (when registers
+      (case (gethash (reg-name (first registers)) (space-bankmaps space))
 	((t) nil)
-	((nil) (dolist (reg regs)
+	((nil) (dolist (reg registers)
 		 (setf (gethash (reg-name reg) (space-bankmaps space)) bank)))
-	(t (dolist (reg regs)
+	(t (dolist (reg registers)
 	     (setf (gethash (reg-name reg) (space-bankmaps space)) t)))))))
       
 (defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only)
@@ -279,7 +280,7 @@
   (let ((spec (gethash regname (space-bankmaps space))))
     (case spec
       ((nil)
-       (when (gethash regname (space-regs space))
+       (when (gethash regname (space-registers space))
 	 (error "Register ~S is hashed in space ~S, but has no associated bank." regname space))
        (error "Unknown register ~S in space ~S." regname space))
       ((t) nil)
@@ -335,7 +336,7 @@
 		 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
-	(dolist (accessor-name '(space-banks space-regs space-formats space-bitfields space-bitfield-bytes
+	(dolist (accessor-name '(space-banks space-registers space-formats space-bitfields space-bitfield-bytes
 				 space-layouts space-bankmaps))
 	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
 	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
