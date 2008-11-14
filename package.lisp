@@ -4,8 +4,8 @@
   (:shadow #:space)
   (:export
    #:space #:space-name #:space-root #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:purge-namespace-devices #:list-spaces
-   #:register-layout #:layout-space #:layout-registers #:define-register-layout
-   #:register-set #:regset-space #:define-register-set-accessor #:with-register-sets #:register-regset-name
+   #:layout #:layout-space #:layout-registers #:define-layout
+   #:bank #:regset-space #:define-bank-accessor #:with-banks #:register-regset-name
    #:register #:reg #:reg-name #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
    #:bitfield #:bitfield-byte #:bitfield-decode #:bitfield-regformat #:bitfield-documentation
    #:byteval

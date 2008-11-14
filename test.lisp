@@ -33,7 +33,7 @@
 	    (:f0		1 0 "Memory Space")
 	    (:f1		1 1 "Bus Master")
 	    (:f2		1 2 "Parity Error Response")))
-  (:register-layouts
+  (:layouts
    ((:foo "foo register layout")
     (:fooreg		0 :format :fooreg :doc "foo register 0"))))
 
@@ -51,7 +51,7 @@
 	    (:b2		1 2 "")
 	    (:b3		1 3 "")
 	    (:b4		1 4 "")))
-  (:register-layouts
+  (:layouts
    ((:bar "bar register layout")
     (:barreg		0 :format :barreg :doc "bar register 0"))))
 
@@ -70,8 +70,8 @@
 
 (set-namespace :foo :bar)
 
-(define-register-set-accessor :foo :foo 'testreg "foo bank")
-(define-register-set-accessor :bar :bar 'testreg "bar bank")
+(define-bank-accessor :foo :foo 'testreg "foo bank")
+(define-bank-accessor :bar :bar 'testreg "bar bank")
 
 (defparameter tdev (make-instance 'test-device))
 
