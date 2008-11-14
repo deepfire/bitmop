@@ -5,7 +5,7 @@
   (:export
    #:space #:space-name #:space-root #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:purge-namespace-devices #:list-spaces
    #:layout #:layout-space #:layout-registers #:define-layout
-   #:bank #:regset-space #:define-bank #:with-banks #:register-regset-name
+   #:bank #:bank-space #:define-bank #:with-banks #:register-bank-name
    #:register #:reg #:reg-name #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
    #:bitfield #:bitfield-byte #:bitfield-decode #:bitfield-format #:bitfield-documentation
    #:byteval
