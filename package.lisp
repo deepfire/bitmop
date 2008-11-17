@@ -7,7 +7,7 @@
    #:layout #:layout-space #:layout-registers #:define-layout
    #:bank #:bank-space #:define-bank #:with-banks #:register-bank-name
    #:register #:reg #:reg-name #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
-   #:bitfield #:bitfield-byte #:bitfield-decode #:bitfield-format #:bitfield-documentation
+   #:bitfield #:bitfield-byte #:bitfield-decode #:bitfield-format
    #:byteval
    #:device #:id #:device-id #:space-device #:device-space #:backend #:device-backend #:device-register #:space-remove-device
    #:test-devbits #:test-bits #:format-decode #:reg-selector #:reg-ext

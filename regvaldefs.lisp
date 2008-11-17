@@ -59,7 +59,7 @@
   bitfields)
 
 (defstruct (bitfield (:include spaced))
-  format
+  format%
   spec
   (bytevals (make-hash-table) :type hash-table)
   (byterevvals (make-hash-table) :type hash-table))
@@ -68,7 +68,7 @@
   "Maps register names into register structures."
   registers)
   
-(defstruct (reg (:include spaced))
+(defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
   layout
   format
@@ -164,18 +164,15 @@
 (define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
 (define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
 (define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
-(define-container-hash-accessor :i register :container-transform registers :parametrize-container t)
+(define-container-hash-accessor :i bankmap :container-transform bankmaps :parametrize-container t :type t :if-exists :continue)
+(define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register)
 (define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t)
-(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t)
+(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
 (define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
 
 (defun bitfield-format (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
-  (bitfield-format (bitfield space bitfield-name)))
-
-(defun bitfield-documentation (space bitfield-name)
-  "Yield the documentation for BITFIELD-NAMEd in SPACE"
-  (documentation (bitfield space bitfield-name)))
+  (bitfield-format% (bitfield space bitfield-name)))
 
 (defun register-format-field-type (name)
   (format-symbol t "~A-BITFIELD" name))
@@ -183,7 +180,7 @@
 (defun define-bitfield (format name size pos doc &optional bytevals)
   (let* ((byte (byte size pos))
 	 (space (format-space format))
-	 (bitfield (make-bitfield :format format :name name :spec byte :documentation doc)))
+	 (bitfield (make-bitfield :format% format :name name :spec byte :documentation doc)))
     (when (gethash name (bitfields space))
       (error "Attempt to redefine as existing bitfield ~S in namespace ~S~%" name (space-name space)))
     (push bitfield (format-bitfields format))
@@ -210,9 +207,9 @@
   (when (gethash name (registers (layout-space layout)))
     (error "Attempt to redefine register ~S in namespace ~S."
 	   name (space-name (layout-space layout))))
-  (let ((register (make-reg :layout layout :name name :selector selector :documentation doc
-                                                                         :format (when format (format (layout-space layout) format)) :ext ext
-                                                                         :type (register-format-field-type format))))
+  (let ((register (make-register :layout layout :name name :selector selector :documentation doc
+                                 :format (when format (format (layout-space layout) format)) :ext ext
+                                 :type (register-format-field-type format))))
     (push register (layout-registers layout))
     (setf (gethash name (registers (layout-space layout))) register)))
 
@@ -230,12 +227,12 @@
 (defun bank-try-claim-layout (space bank layout)
   (when-let ((registers (remove-if-not #'(lambda (r) (eq layout (reg-layout r)))
                                        (hash-table-values (registers space)))))
-    (case (gethash (name (first registers)) (bankmaps space))
+    (case (bankmap space (name (first registers)) :if-does-not-exist :continue)
       ((t) nil)
       ((nil) (dolist (reg registers)
-               (setf (gethash (name reg) (bankmaps space)) bank)))
+               (setf (bankmap space (name reg)) bank)))
       (t (dolist (reg registers)
-           (setf (gethash (name reg) (bankmaps space)) t))))))
+           (setf (bankmap space (name reg)) t))))))
       
 (defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only)
   `(progn
@@ -262,7 +259,7 @@
            (setf (bank-setter bank) (fdefinition (list 'setf ,accessor))))))))
 
 (defun register-unambiguous-bank (space regname)
-  (let ((spec (gethash regname (bankmaps space))))
+  (let ((spec (bankmap space regname :if-does-not-exist :continue)))
     (case spec
       ((nil)
        (when (gethash regname (registers space))
@@ -440,12 +437,12 @@
       `(decode-context-without-bitfields (,spacename ,bank-want ,space-want ,fmtname) ,regname ,env ,@body)))
 
 (defun device-register (device bank register)
-  (declare (type device device) (type reg register))
+  (declare (type device device) (type register register))
   (funcall (bank-getter bank)
 	   device (if (bank-pass-register bank) register (reg-selector register))))
 
 (defun (setf device-register) (value device bank register)
-  (declare (type (unsigned-byte 32) value) (type device device) (type reg register))
+  (declare (type (unsigned-byte 32) value) (type device device) (type register register))
   (funcall (bank-setter bank)
 	   value device (if (bank-pass-register bank) register (reg-selector register))))
     
