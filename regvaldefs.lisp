@@ -228,15 +228,14 @@
 	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ',defs)))
 
 (defun bank-try-claim-layout (space bank layout)
-  (let* ((registers (loop :for reg :being :the :hash-values :in (registers space)
-                                                            :when (eq (reg-layout reg) layout) :collect reg)))
-    (when registers
-      (case (gethash (name (first registers)) (bankmaps space))
-	((t) nil)
-	((nil) (dolist (reg registers)
-		 (setf (gethash (name reg) (bankmaps space)) bank)))
-	(t (dolist (reg registers)
-	     (setf (gethash (name reg) (bankmaps space)) t)))))))
+  (when-let ((registers (remove-if-not #'(lambda (r) (eq layout (reg-layout r)))
+                                       (hash-table-values (registers space)))))
+    (case (gethash (name (first registers)) (bankmaps space))
+      ((t) nil)
+      ((nil) (dolist (reg registers)
+               (setf (gethash (name reg) (bankmaps space)) bank)))
+      (t (dolist (reg registers)
+           (setf (gethash (name reg) (bankmaps space)) t))))))
       
 (defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only)
   `(progn
