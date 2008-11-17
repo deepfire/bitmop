@@ -268,12 +268,12 @@
       ((t) nil)
       (t spec))))
 
-(defun register-bank-name (space regname disambiguation)
+(defun register-bank (space regname disambiguation)
   (declare (type space space) (type symbol regname) (type list disambiguation))
-  (name (or (register-unambiguous-bank space regname)
-            (find (reg-layout (register space regname))
-                  (mapcar [bank space] disambiguation) :key #'bank-layout)
-            (error "Ambiguous access method for register ~S space ~S." regname space))))
+  (or (register-unambiguous-bank space regname)
+      (find (reg-layout (register space regname))
+            (mapcar [bank space] disambiguation) :key #'bank-layout)
+      (error "Ambiguous access method for register ~S space ~S." regname space)))
 
 (defun bank-context (env)
   (multiple-value-bind (val expanded-p) (macroexpand-1 '*banks* env)
@@ -403,7 +403,7 @@
     `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
             (,newbytenames (ensure-list ,bytenames))
             ,@(when bitfield `((,bitfield (bitfield ,space (car ,newbytenames)))))
-            ,@(when bank `((,bank (register-bank-name ,space ,regname (bank-context ,env)))))
+            ,@(when bank `((,bank (name (register-bank ,space ,regname (bank-context ,env))))))
             ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
                                                               (name format)))))))
        (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank)) ,newbytenames))
@@ -419,7 +419,7 @@
 (defmacro decode-context-without-bitfields ((spacename &optional bank-want space-want fmtname) regname env &body body)
   (let ((space (or space-want (gensym))) (bank (and regname bank-want)))
     `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
-            ,@(when bank `((,bank (register-bank-name ,space ,regname (bank-context ,env)))))
+            ,@(when bank `((,bank (name (register-bank ,space ,regname (bank-context ,env))))))
             ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
                                                               (name format)))))))
        (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank))))
@@ -501,7 +501,7 @@
 				 `(device-register ,device (load-time-value (bank (space ',space-name) ,bankname))
 						   (load-time-value (register (space ',space-name) ,regname)))))
 	       `(,mask ,(lognot mask))
-	       `(,(mkenv space-name (bitfield-name bitfield)) nil))))))
+	       `(,(mkenv space-name (name bitfield)) nil))))))
 
 (defmacro devbits (&environment env device regname (&rest bytenames))
   (decode-context (space-name bankname space bitfield) regname bytenames env
@@ -541,7 +541,7 @@
    a corresponding member of BYTEVALS."
   (decode-context (space-name bankname space bitfield) nil bytenames env
     (let ((bytenames (ensure-list bytenames))
-	  (bankname (register-bank-name space (name (register space regname)) (bank-context env))))
+	  (bankname (name (register-bank space (name (register space regname)) (bank-context env)))))
       `(= (logand (device-register ,device (load-time-value (bank (space ',space-name) ,bankname))
 				   (load-time-value (register (space ',space-name) ,regname)))
 		  ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
