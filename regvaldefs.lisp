@@ -398,16 +398,19 @@
        (make-hash-table)
        (xform-hash-table #'flatten-byteval (bitfield-bytevals bitfield)))))
 
-(defmacro decode-context-with-bitfields ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
+(defmacro decode-context ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
   (let ((space (or space-want (gensym))) (bank (and regname bank-want)) (newbytenames (gensym)))
     `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
-            (,newbytenames (ensure-list ,bytenames))
-            ,@(when bitfield `((,bitfield (bitfield ,space (car ,newbytenames)))))
+            ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
+            ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames)))))
             ,@(when bank `((,bank (name (register-bank ,space ,regname (bank-context ,env))))))
-            ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
-                                                              (name format)))))))
-       (declare (ignorable ,space ,@(when bitfield `(,bitfield)) ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank)) ,newbytenames))
-       (bytenames-ensure-same-register ,space ,regname ,newbytenames)
+            ,@(when fmtname `((,fmtname (and ,regname (xform-if #'identity #'name (reg-format (register ,space ,regname))))))))
+       (declare (ignorable ,space
+                           ,@(when bytenames `(,newbytenames))
+                           ,@(when (and bitfield bytenames) `(,bitfield))
+                           ,@(when bank `(,bank))
+                           ,@(when fmtname `(,fmtname))))
+       ,@(when bytenames `((bytenames-ensure-same-register ,space ,regname ,newbytenames)))
        ,@(when bank
                `((unless (or (register-unambiguous-bank ,space ,regname)
                              (null (bank-context ,env))
@@ -415,26 +418,6 @@
                    (error "bank context compilation error: mapped ~S to ~S, while ~S were available"
                           ,regname (name (bank ,space ,bank)) (bank-context ,env)))))
        ,@body)))
-
-(defmacro decode-context-without-bitfields ((spacename &optional bank-want space-want fmtname) regname env &body body)
-  (let ((space (or space-want (gensym))) (bank (and regname bank-want)))
-    `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
-            ,@(when bank `((,bank (name (register-bank ,space ,regname (bank-context ,env))))))
-            ,@(when fmtname `((,fmtname (and ,regname (if-let ((format (reg-format (register ,space ,regname))))
-                                                              (name format)))))))
-       (declare (ignorable ,space ,@(when fmtname `(,fmtname)) ,@(when bank `(,bank))))
-       ,@(when bank
-               `((unless (or (register-unambiguous-bank ,space ,regname)
-                             (null (bank-context ,env))
-                             (member (name (bank ,space ,bank)) (bank-context ,env)))
-                   (error "bank context compilation error: mapped ~S to ~S, while ~S were available"
-                          ,regname (name (bank ,space ,bank)) (bank-context ,env)))))
-       ,@body)))
-
-(defmacro decode-context ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
-  (if bytenames
-      `(decode-context-with-bitfields (,spacename ,bank-want ,space-want ,bitfield ,fmtname) ,regname ,bytenames ,env ,@body)
-      `(decode-context-without-bitfields (,spacename ,bank-want ,space-want ,fmtname) ,regname ,env ,@body)))
 
 (defun device-register (device bank register)
   (declare (type device device) (type register register))
