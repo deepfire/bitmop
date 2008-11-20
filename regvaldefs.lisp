@@ -31,17 +31,30 @@
    (referrers :accessor space-referrers :initform nil :type list)
 
    (devices :accessor devices :initform (make-hash-table :test 'equal) :type hash-table)
-   (devicetypes :accessor devicetypes :initform (make-hash-table) :type hash-table)
-
+   (devtypes :accessor devtypes :initform (make-hash-table) :type hash-table)
    (formats :accessor formats :initform (make-hash-table) :type hash-table)
    (layouts :accessor layouts :initform (make-hash-table) :type hash-table)
    (bankmaps :accessor bankmaps :initform (make-hash-table) :type hash-table)
    (banks :accessor banks :initform (make-hash-table) :type hash-table)
    (registers :accessor registers :initform (make-hash-table) :type hash-table)
+   (register-instances :accessor register-instances :initform (make-hash-table) :type hash-table)
    (bitfields :accessor bitfields :initform (make-hash-table) :type hash-table)
    (bitfield-bytes :accessor bitfield-bytes :initform (make-hash-table) :type hash-table)
    )
   (:default-initargs :implemented-by nil))
+
+(defmethod print-object ((space space) stream)
+  (cl:format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S formats: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
+             (space-name space)
+             (space-documentation space) (if (listp (space-implemented-by space))
+                                             (space-implemented-by space)
+                                             (space-name (space-implemented-by space)))
+             (maphash-values #'name (formats space))
+             (maphash-values #'name (banks space))
+             (maphash-values #'name (registers space))
+             (maphash-values #'device-hash-id (devices space))
+             (maphash* #'list (bankmaps space))
+             (maphash-values #'name (layouts space))))
 
 (defun space-root (space)
   (if (space-implemented-by space)
@@ -67,13 +80,28 @@
 (defstruct (layout (:include spaced))
   "Maps register names into register structures."
   registers)
-  
-(defstruct (register (:include spaced) (:conc-name reg-))
+
+;;;
+;;; XXX: The naming is painfully inconsistent: REGISTER vs. REGISTER-INSTANCE,
+;;;      and DEVTYPE vs. DEVICE
+;;;
+;;;      Only LAYOUT/BANK seem to be at peace.
+;;;  
+(defstruct (register (:include spaced) (:conc-name reg-) (:constructor %make-register))
   "Defines a formatted register, specified within a layout with a selector."
   layout
   format
   selector
+  name-format
   type ext)
+
+(defun make-register (&rest args &key name-format name &allow-other-keys)
+  (apply #'%make-register :name-format (or name-format (format nil "~A~^" name))))
+
+(defstruct (register-instance (:include spaced) (:conc-name reginstance-))
+  "Instance of register."
+  register
+  bank)
 
 (defstruct (bank (:include spaced)
                  (:print-object
@@ -84,71 +112,89 @@
   layout
   getter setter
   pass-register write-only)
+
+(defstruct (devtype (:include spaced))
+  "Abstract device type."
+  (banks nil :type list)
+  (instances nil :type list))
   
 (defstruct (byteval (:include spaced))
   byte
   value)
 
+(defun byte-bitmask (byte &optional (acc 0))
+  (dpb -1 byte acc))
+
+(defun bytes-bitmask (bytes)
+  (reduce #'byte-bitmask bytes :initial-value 0 :from-end t))
+
+(defun flatten-byteval (byteval)
+  (dpb (byteval-value byteval) (byteval-byte byteval) 0))
+
 (defclass device ()
   ((id :accessor device-id :type (integer 0))
    (space :accessor device-space :type space)
+   (type :type devtype :initarg :type)
    (backend :accessor device-backend :type (or null device) :initarg :backend)))
-
-(defun byte-bitmask (byte)
-  (dpb -1 byte 0))
-
-(defun flatten-byteval (byteval)
-  (declare (type byteval byteval))
-  (dpb (byteval-value byteval) (byteval-byte byteval) 0))
-
-(defun bytes-bitmask (bytes)
-  (reduce (lambda (acc byte) (dpb -1 byte acc)) bytes :initial-value 0))
-
-(defun device-hash-id (device)
-  (list (type-of device) (device-id device)))
-
-(defmethod print-object ((space space) stream)
-  (cl:format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S formats: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
-             (space-name space)
-             (space-documentation space) (if (listp (space-implemented-by space))
-                                             (space-implemented-by space)
-                                             (space-name (space-implemented-by space)))
-             (loop :for x :being :the :hash-values :in (formats space) :collect (name x))
-             (loop :for x :being :the :hash-values :in (banks space) :collect (name x))
-             (loop :for x :being :the :hash-values :in (registers space) :collect (name x))
-             (loop :for x :being :the :hash-values :in (devices space) :collect (device-hash-id x))
-             (loop :for x :being :the :hash-values :in (bankmaps space)
-                                                   :using (hash-key k) :collect (list k x))
-             (loop :for x :being :the :hash-values :in (layouts space) :collect (name x))))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
     (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
 
-(defun device-insert (space device)
-  (lret* ((type (type-of device))
-          (id (length (gethash type (devicetypes space)))))
-    (push device (gethash type (devicetypes space)))
-    (setf (device-id device) id
-          (device-space device) space
-          (gethash (list type id) (devices space)) device)))
+(defvar *spaces* (make-hash-table :test #'equal))
+
+(define-container-hash-accessor *spaces* space)
+(define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
+(define-container-hash-accessor :i devtype :container-transform devtypes :parametrize-container t)
+(define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
+(define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
+(define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
+(define-container-hash-accessor :i bankmap :container-transform bankmaps :parametrize-container t :type t :if-exists :continue)
+(define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register)
+(define-container-hash-accessor :i register-instance :container-transform register-instances :parametrize-container t :type register)
+(define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t)
+(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
+(define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
+
+(defun device-hash-id (device)
+  (list (type-of device) (device-id device)))
+
+(defun device-type (device)
+  (slot-value (devtype (device-space device) (type-of device)) 'type))
 
 (defun space-device (space type id)
-  (let ((bucket (gethash type (devicetypes space))))
-    (find id bucket :key #'device-id)))
+  (find id (devtype-instances (devtype space type)) :key #'device-id))
+
+(defgeneric device-register-bank (device bank)
+  (:method ((device device) bank))
+  (:documentation ""))
+
+(defun create-device-register-instances (device)
+  "Walk the DEVICE's layouts and spawn the broodlings."
+  (iter (for bank-name in (devtype-banks (devtype (type-of device))))
+        (for bank = (bank space bank-name))
+        (iter (for register in (layout-registers (bank-layout bank)))
+              (for name = (format-symbol :keyword (reg-name-format register) (device-id device)))
+              (setf (register-instance space name)
+                    (make-register-instance :name name :register register :bank bank)))))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
-  (device-insert space device))
+  (let ((devtype (devtype space (type-of device))))
+    ;; register within devtype to obtain the id
+    (push device (devtype-instances devtype))
+    (setf (device-id device) (length (devtype-instances devtype))
+    ;; register within space
+          (gethash (device-hash-id device) (devices space)) device)
+    (create-device-register-instances device)))
 
-(defgeneric space-remove-device (device)
-  (:method ((device device))
-    (let ((space (device-space device)))
-      (remhash (device-hash-id device) (devices space))
-      (removef (gethash (type-of device) (devicetypes space)) device))))
+(defun space-remove-device (device)
+  (let ((space (device-space device)))
+    (remhash (device-hash-id device) (devices space))
+    (removef (devtype-instances (devtype space (type-of device))) device)))
 
 (defun purge-namespace-devices (space)
   (clrhash (devices space))
-  (clrhash (devicetypes space)))
+  (clrhash (devtypes space)))
 
 (define-condition bit-notation-condition (error) ())
 
@@ -157,18 +203,6 @@
   (:report (lambda (condition stream)
 	     (declare (ignorable condition))
 	     (cl:format stream "Attempt to use names in a null space context."))))
-
-(defvar *spaces* (make-hash-table :test #'equal))
-
-(define-container-hash-accessor *spaces* space)
-(define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
-(define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
-(define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
-(define-container-hash-accessor :i bankmap :container-transform bankmaps :parametrize-container t :type t :if-exists :continue)
-(define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register)
-(define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t)
-(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
-(define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
 
 (defun bitfield-format (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
@@ -203,12 +237,13 @@
      (deftype ,(register-format-field-type name) () `(member ,,@(mapcar #'car bitspecs)))
      (define-register-format-notype (space ,(space-name (space (space-name-context env)))) ',name ,doc ',bitspecs)))
   
-(defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
+(defun define-register (layout name selector &key (doc "Undocumented register.") format ext name-format)
   (when (gethash name (registers (layout-space layout)))
     (error "Attempt to redefine register ~S in namespace ~S."
 	   name (space-name (layout-space layout))))
   (let ((register (make-register :layout layout :name name :selector selector :documentation doc
                                  :format (when format (format (layout-space layout) format)) :ext ext
+                                 :name-format name-format
                                  :type (register-format-field-type format))))
     (push register (layout-registers layout))
     (setf (gethash name (registers (layout-space layout))) register)))
@@ -223,7 +258,6 @@
      (deftype ,name () `(member ,,@(mapcar #'first defs)))
      (define-layout-notype
 	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ',defs)))
-
 (defun bank-try-claim-layout (space bank layout)
   (when-let ((registers (remove-if-not #'(lambda (r) (eq layout (reg-layout r)))
                                        (hash-table-values (registers space)))))
@@ -286,6 +320,11 @@
   `(symbol-macrolet ((*banks* ,names))
      ,@body))
 
+
+(defmacro define-devtype (&environment env (name doc) &rest banks)
+  `(make-devtype
+    :space (space ,(space-name (space (space-name-context env)))) :name ',name :documentation ,doc :banks ',defs))
+
 ;;;
 ;;;  o  layout templates
 ;;;  o  register instantiation
@@ -305,7 +344,8 @@
 
        (symbol-macrolet ((*space* ,name))
 	 ,@(mapcar [cons 'define-register-format] (cdr (assoc :register-formats f)))
-	 ,@(mapcar [cons 'define-layout] (cdr (assoc :layouts f)))))))
+	 ,@(mapcar [cons 'define-layout] (cdr (assoc :layouts f)))
+	 ,@(mapcar [cons 'define-devtype] (cdr (assoc :device-types f)))))))
 
 (defun undefine-space (name)
   (remhash name *spaces*))
