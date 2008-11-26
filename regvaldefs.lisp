@@ -324,8 +324,10 @@
 
 
 (defmacro define-devtype (&environment env (name doc) &rest banks)
-  `(make-devtype
-    :space (space ,(space-name (space (space-name-context env)))) :name ',name :documentation ,doc :banks ',defs))
+  (with-gensyms (space)
+   `(let ((,space (space ,(space-name (space (space-name-context env)))))) 
+      (setf (devtype ,space ',name)
+            (make-devtype :space ,space :name ',name :documentation ,doc :banks ',banks)))))
 
 ;;;
 ;;;  o  layout templates
