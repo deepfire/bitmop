@@ -149,6 +149,14 @@
           (devbits tdev :barreg (:bc)) (supervar))
     (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
+(deftest device-related device-runtime-queries-test (tdev)
+  (let* ((unispace (space rvd::*space*))
+         (devtype (devtype unispace (type-of tdev))))
+    (expect-value '(:barreg)
+                  (iter (for layout in (mapcar #'bank-layout (devtype-banks devtype)))
+                        (appending (mapcar #'name (layout-registers layout))))
+                  :test 'equal)))
+
 (defun run-tests (&rest test-suites)
   "Run a set of test suites. Defaults to PURE-EVALUATION and DEVICE-RELATED."
   (let ((test-suites (or test-suites '(pure-evaluation device-related))))
@@ -157,5 +165,5 @@
         (dolist (suite test-suites)
           (andf success (run-test-suite (ecase suite
                                           (pure-evaluation nil)
-                                          (device-related (make-instance 'test-device)))
+                                          (device-related tdev))
                                         suite)))))))
