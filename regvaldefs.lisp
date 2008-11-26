@@ -78,9 +78,14 @@
   (bytevals (make-hash-table) :type hash-table)
   (byterevvals (make-hash-table) :type hash-table))
 
-(defstruct (layout (:include spaced))
+(defstruct (layout (:include spaced) (:constructor %make-layout))
   "Maps register names into register structures."
+  name-format
   registers)
+
+(defun make-layout (&rest args &key name-format &allow-other-keys)
+  (apply #'%make-layout :name-format (or name-format (cl:format nil "~~A~~^"))
+         (remove-from-plist args :name-format)))
 
 ;;;
 ;;; XXX: The naming is painfully inconsistent: REGISTER vs. REGISTER-INSTANCE,
@@ -88,17 +93,12 @@
 ;;;
 ;;;      Only LAYOUT/BANK seem to be at peace.
 ;;;  
-(defstruct (register (:include spaced) (:conc-name reg-) (:constructor %make-register))
+(defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
   layout
   format
   selector
-  name-format
   type ext)
-
-(defun make-register (&rest args &key name-format name &allow-other-keys)
-  (apply #'%make-register :name-format (or name-format (cl:format nil "~A~^" name))
-         (remove-from-plist args :name-format)))
 
 (defstruct (register-instance (:include spaced) (:conc-name reginstance-))
   "Instance of register."
@@ -135,7 +135,7 @@
 
 (defclass device ()
   ((id :accessor device-id :type (integer 0))
-   (space :accessor device-space :type space)
+   (space :accessor device-space :type space :initarg :space)
    (type :type devtype :initarg :type)
    (backend :accessor device-backend :type (or null device) :initarg :backend)
    (category :initarg :category)))
@@ -178,8 +178,10 @@
   "Walk the DEVICE's layouts and spawn the broodlings."
   (iter (for bank-name in (devtype-banks (devtype space (device-type device))))
         (for bank = (bank space bank-name))
-        (iter (for (the register register) in (layout-registers (bank-layout bank)))
-              (for name = (format-symbol :keyword (reg-name-format register) (device-id device)))
+        (for layout = (bank-layout bank))
+        (iter (for register in (layout-registers layout))
+              (for name = (format-symbol :keyword (layout-name-format layout)
+                                         (name register) (device-id device)))
               (setf (register-instance space name)
                     (make-register-instance :name name :register register :bank bank)))))
 
@@ -187,7 +189,7 @@
   (let ((devtype (devtype space (device-type device))))
     ;; register within devtype to obtain the id
     (push device (devtype-instances devtype))
-    (setf (device-id device) (length (devtype-instances devtype))
+    (setf (device-id device) (1- (length (devtype-instances devtype)))
     ;; register within space
           (gethash (device-hash-id device) (devices space)) device)
     (create-device-register-instances space device)))
@@ -242,27 +244,27 @@
      (deftype ,(register-format-field-type name) () `(member ,,@(mapcar #'car bitspecs)))
      (define-register-format-notype (space ,(space-name (space (space-name-context env)))) ',name ,doc ',bitspecs)))
   
-(defun define-register (layout name selector &key (doc "Undocumented register.") format ext name-format)
+(defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
   (when (gethash name (registers (layout-space layout)))
     (error "Attempt to redefine register ~S in namespace ~S."
 	   name (space-name (layout-space layout))))
   (let ((register (make-register :layout layout :name name :selector selector :documentation doc
                                  :format (when format (format (layout-space layout) format)) :ext ext
-                                 :name-format name-format
                                  :type (register-format-field-type format))))
     (push register (layout-registers layout))
     (setf (gethash name (registers (layout-space layout))) register)))
 
-(defun define-layout-notype (space name documentation registerspecs)
-  (let ((layout (make-layout :name name :space space :documentation documentation)))
+(defun define-layout-notype (space name documentation name-format registerspecs)
+  (let ((layout (make-layout :name name :space space :documentation documentation
+                             :name-format name-format)))
     (mapc [apply [define-register layout]] registerspecs)
     (setf (gethash name (layouts space)) layout)))
 
-(defmacro define-layout (&environment env (name doc) &rest defs)
+(defmacro define-layout (&environment env (name doc &key name-format) &rest defs)
   `(progn
      (deftype ,name () `(member ,,@(mapcar #'first defs)))
      (define-layout-notype
-	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ',defs)))
+	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ,name-format ',defs)))
 (defun bank-try-claim-layout (space bank layout)
   (when-let ((registers (remove-if-not #'(lambda (r) (eq layout (reg-layout r)))
                                        (hash-table-values (registers space)))))
