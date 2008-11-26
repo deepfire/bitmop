@@ -171,11 +171,11 @@
   (:method ((device device) bank))
   (:documentation ""))
 
-(defun create-device-register-instances (device)
+(defun create-device-register-instances (space device)
   "Walk the DEVICE's layouts and spawn the broodlings."
-  (iter (for bank-name in (devtype-banks (devtype (type-of device))))
+  (iter (for bank-name in (devtype-banks (devtype space (type-of device))))
         (for bank = (bank space bank-name))
-        (iter (for register in (layout-registers (bank-layout bank)))
+        (iter (for (the register register) in (layout-registers (bank-layout bank)))
               (for name = (format-symbol :keyword (reg-name-format register) (device-id device)))
               (setf (register-instance space name)
                     (make-register-instance :name name :register register :bank bank)))))
@@ -187,7 +187,7 @@
     (setf (device-id device) (length (devtype-instances devtype))
     ;; register within space
           (gethash (device-hash-id device) (devices space)) device)
-    (create-device-register-instances device)))
+    (create-device-register-instances space device)))
 
 (defun space-remove-device (device)
   (let ((space (device-space device)))
