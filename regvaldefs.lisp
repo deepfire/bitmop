@@ -153,7 +153,7 @@
 (define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
 (define-container-hash-accessor :i bankmap :container-transform bankmaps :parametrize-container t :type t :if-exists :continue)
 (define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register)
-(define-container-hash-accessor :i register-instance :container-transform register-instances :parametrize-container t :type register)
+(define-container-hash-accessor :i register-instance :container-transform register-instances :parametrize-container t :type register-instance :if-exists :error)
 (define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t)
 (define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
 (define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
