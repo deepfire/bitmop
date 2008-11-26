@@ -153,12 +153,8 @@
     (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
 (deftest device-related reginstance-test (tdev)
-  (let* ((reginstance (register-instance :barreg)))
-    (setf (devreg tdev :barreg) #xfeed)
-    (expect-value #xfeed
-                  (device-register (reginstance-device reginstance)
-                                   (reginstance-bank reginstance)
-                                   (reginstance-register reginstance)))))
+  (setf (devreg tdev :barreg) #xfeed)
+  (expect-value #xfeed (reginstance-value (register-instance :barreg))))
 
 (deftest device-related device-runtime-queries-test (tdev)
   (let* ((unispace (space (space-name-context)))

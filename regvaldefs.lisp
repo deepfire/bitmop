@@ -472,6 +472,24 @@
                           ,regname (name (bank ,space ,bank)) (bank-context ,env)))))
        ,@body)))
 
+(defun reginstance-value (register-instance)
+  (declare (type register-instance register-instance))
+  (let ((bank (reginstance-bank register-instance))
+        (register (reginstance-register register-instance)))
+   (funcall (bank-getter bank)
+            (reginstance-device register-instance) 
+            (if (bank-pass-register bank) register (reg-selector register)))))
+
+(defun set-reginstance-value (value register-instance)
+  (declare (type register-instance register-instance))
+  (let ((bank (reginstance-bank register-instance))
+        (register (reginstance-register register-instance)))
+   (funcall (bank-setter bank)
+            value (reginstance-device register-instance) 
+            (if (bank-pass-register bank) register (reg-selector register)))))
+
+(defsetf reginstance-value set-reginstance-value)
+
 (defun device-register (device bank register)
   (declare (type device device) (type register register))
   (funcall (bank-getter bank)
