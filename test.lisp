@@ -19,7 +19,7 @@
 ;;; Boston, MA  02111-1307  USA.
 
 (defpackage #:regvaldefs-test
-  (:use :common-lisp :regvaldefs :custom-harness :pergamum :setc)
+  (:use :common-lisp :regvaldefs :alexandria :custom-harness :iterate :pergamum :setc)
   (:shadowing-import-from :regvaldefs #:space)
   (:export #:run-tests #:pure-evaluation #:device-related))
 
@@ -35,15 +35,16 @@
 	    (:f2		1 2 "Parity Error Response")))
   (:layouts
    ((:foo "foo register layout")
-    (:fooreg		0 :format :fooreg :doc "foo register 0")))
-  (:device-types
-   ((test-device "Test device abstract type.")
-    :foo)))
+    (:fooreg		0 :format :fooreg :doc "foo register 0"))))
 
-(define-namespace :bar
+(define-namespace :moobar
   (:implemented-by nil)
   (:documentation "Bar device")
   (:register-formats
+   (:mooreg "Moo-type register"
+	    (:m0		1 0 "Memory Space")
+	    (:m1		1 1 "Bus Master")
+	    (:m2		1 2 "Parity Error Response"))
    (:barreg "Bar-type register"
 	    (:bc		3 1 ""
 				((#b110	:noo	"fooance")
@@ -55,16 +56,18 @@
 	    (:b3		1 3 "")
 	    (:b4		1 4 "")))
   (:layouts
+   ((:moo "moo register layout")
+    (:mooreg		0 :format :mooreg :doc "moo register 0"))
    ((:bar "bar register layout")
     (:barreg		0 :format :barreg :doc "bar register 0")))
   (:device-types
    ((test-device "Test device abstract type.")
-    :bar)))
+    :moo :bar)))
 
 (defclass test-device (device)
   ((hash :accessor test-device-hash :initform (make-hash-table)))
   (:default-initargs
-   :space (space :foo)))
+   :space (space :moobar)))
 
 (defun testreg (device selector)
   (declare (type test-device device))
@@ -74,9 +77,9 @@
   (declare (type test-device device))
   (setf (gethash selector (test-device-hash device)) val))
 
-(set-namespace :foo :bar)
+(set-namespace :foo :moobar)
 
-(define-bank :foo :foo 'testreg "foo bank")
+(define-bank :moo :moo 'testreg "moo bank")
 (define-bank :bar :bar 'testreg "bar bank")
 
 (defparameter tdev (make-instance 'test-device))
@@ -97,10 +100,10 @@
        (expect-value #b1100 (bits (:bc) :noo))))
 
 (deftest device-related register-bit-io-test (tdev)
-  (setc (devreg tdev :fooreg) 0
-        (devbit tdev :fooreg :f0 :write-only t) t)
-  (expect-success (and (devbit tdev :fooreg :f0)
-                       (not (devbit tdev :fooreg :f1)))))
+  (setc (devreg tdev :mooreg) 0
+        (devbit tdev :mooreg :m0 :write-only t) t)
+  (expect-success (and (devbit tdev :mooreg :m0)
+                       (not (devbit tdev :mooreg :m1)))))
 
 (deftest device-related compound-numeric-bitvalue-plus-devbit-value-test (tdev)
   (setc (devreg tdev :barreg) 0
@@ -114,17 +117,17 @@
        (expect-success (and (devbit tdev :barreg :b3) (devbit tdev :barreg :b2) (not (devbit tdev :barreg :b1))))))
 
 (deftest device-related spread-immediate-evaluation-test (tdev)
-  (setc (devreg tdev :fooreg) 0
-        (devbits tdev :fooreg (:f0 :f1 :f2)) (t nil nil))
+  (setc (devreg tdev :mooreg) 0
+        (devbits tdev :mooreg (:m0 :m1 :m2)) (t nil nil))
   (expect-value '(t nil nil)
-                (multiple-value-list (devbits tdev :fooreg (:f0 :f1 :f2)))
+                (multiple-value-list (devbits tdev :mooreg (:m0 :m1 :m2)))
                 :test 'equal))
 
 (deftest device-related spread-delayed-evaluation-test (tdev)
-  (setc (devreg tdev :fooreg) 0
-        (devbits tdev :fooreg (:f0 :f1 :f2)) (#b1 (plusp 0) nil))
+  (setc (devreg tdev :mooreg) 0
+        (devbits tdev :mooreg (:m0 :m1 :m2)) (#b1 (plusp 0) nil))
   (expect-value '(t nil nil)
-                (multiple-value-list (devbits tdev :fooreg (:f0 :f1 :f2)))
+                (multiple-value-list (devbits tdev :mooreg (:m0 :m1 :m2)))
                 :test 'equal))
 
 (deftest device-related compound-value-compositing-test (tdev)
@@ -149,11 +152,20 @@
           (devbits tdev :barreg (:bc)) (supervar))
     (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
-(deftest-expected-runtime-error type-error device-related device-runtime-queries-test (tdev)
-  (let* ((unispace (space rvd::*space*))
+(deftest device-related reginstance-test (tdev)
+  (let* ((reginstance (register-instance :barreg)))
+    (setf (devreg tdev :barreg) #xfeed)
+    (expect-value #xfeed
+                  (device-register (reginstance-device reginstance)
+                                   (reginstance-bank reginstance)
+                                   (reginstance-register reginstance)))))
+
+(deftest device-related device-runtime-queries-test (tdev)
+  (let* ((unispace (space (space-name-context)))
          (devtype (devtype unispace (type-of tdev))))
-    (expect-value '(:barreg)
-                  (iter (for layout in (mapcar #'bank-layout (devtype-banks devtype)))
+    (expect-value '(:mooreg :barreg)
+                  (iter (for layout in (mapcar (compose #'bank-layout (curry #'bank unispace))
+                                               (devtype-banks devtype)))
                         (appending (mapcar #'name (layout-registers layout))))
                   :test 'equal)))
 
