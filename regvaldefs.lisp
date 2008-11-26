@@ -243,7 +243,7 @@
 (defmacro define-register-format (&environment env name doc &rest bitspecs)
   `(eval-when (:compile-toplevel :load-toplevel)
      (deftype ,(register-format-field-type name) () `(member ,,@(mapcar #'car bitspecs)))
-     (define-register-format-notype (space ,(space-name (space (space-name-context env)))) ',name ,doc ',bitspecs)))
+     (define-register-format-notype (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',bitspecs)))
   
 (defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
   (when (gethash name (registers (layout-space layout)))
@@ -265,7 +265,7 @@
   `(progn
      (deftype ,name () `(member ,,@(mapcar #'first defs)))
      (define-layout-notype
-	 (space ,(space-name (space (space-name-context env)))) ',name ,doc ,name-format ',defs)))
+	 (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ,name-format ',defs)))
 (defun bank-try-claim-layout (space bank layout)
   (when-let ((registers (remove-if-not #'(lambda (r) (eq layout (reg-layout r)))
                                        (hash-table-values (registers space)))))
@@ -279,7 +279,7 @@
 (defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only)
   `(progn
      (eval-when (:compile-toplevel :load-toplevel)
-       (let* ((space (space ',(space-name (space (space-name-context env)))))
+       (let* ((space (space ',(space-name (space (environment-space-name-context env)))))
               (layout (layout space ',layout-name))
               (home-space (layout-space layout))
               (bank (make-bank :name ',name :space home-space :layout layout :documentation ,doc
@@ -290,7 +290,7 @@
            (setf (gethash ',name (banks space)) bank)
            (bank-try-claim-layout space bank layout))))
      (eval-when (:load-toplevel)
-       (let* ((space (space ',(space-name (space (space-name-context env)))))
+       (let* ((space (space ',(space-name (space (environment-space-name-context env)))))
               (bank (bank space ',name)))
          (unless (or (fboundp ,accessor)
                      (fboundp (list 'setf ,accessor)))
@@ -323,7 +323,7 @@
     (when expanded-p val)))
 
 (defmacro with-banks (&environment env (&rest names) &body body)
-  (if-let ((orphan (find-if-not [bank (space (space-name-context env))] names)))
+  (if-let ((orphan (find-if-not [bank (space (environment-space-name-context env))] names)))
 	  (error "Reference to an undefined register set ~S." orphan))
   `(symbol-macrolet ((*banks* ,names))
      ,@body))
@@ -331,7 +331,7 @@
 
 (defmacro define-devtype (&environment env (name doc) &rest banks)
   (with-gensyms (space)
-   `(let ((,space (space ,(space-name (space (space-name-context env)))))) 
+   `(let ((,space (space ,(space-name (space (environment-space-name-context env)))))) 
       (setf (devtype ,space ',name)
             (make-devtype :space ,space :name ',name :documentation ,doc :banks ',banks)))))
 
@@ -374,16 +374,19 @@
 		 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
-	(dolist (accessor-name '(banks registers formats bitfields bitfield-bytes layouts bankmaps))
+	(dolist (accessor-name '(banks registers formats bitfields bitfield-bytes layouts bankmaps devtypes))
 	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
 	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
     (setf (space names) unispace)))
 
-(defun space-name-context (env)
+(defun environment-space-name-context (env)
   (let ((space-name (macroexpand-1 '*space* env)))
     (unless space-name
       (error 'bit-notation-no-space-context-error))
     space-name))
+
+(defmacro space-name-context (&environment env)
+  (list 'quote (environment-space-name-context env)))
 
 (defmacro with-namespaces ((&rest nsnames) &body body)
   (let* ((need-unification (> (length nsnames) 1))
@@ -450,7 +453,7 @@
 
 (defmacro decode-context ((spacename &optional bank-want space-want bitfield fmtname) regname bytenames env &body body)
   (let ((space (or space-want (gensym))) (bank (and regname bank-want)) (newbytenames (gensym)))
-    `(let* ((,spacename (space-name-context ,env)) (,space (space ,spacename))
+    `(let* ((,spacename (environment-space-name-context ,env)) (,space (space ,spacename))
             ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
             ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames)))))
             ,@(when bank `((,bank (name (register-bank ,space ,regname (bank-context ,env))))))
@@ -582,7 +585,7 @@
 
 (defmacro test-bits (&environment env (&rest bytenames) val)
   "Check if every bitfield specified by BYTENAMES is set to all 1's."
-  (let ((mask (bytes-bitmask (mapcar [bitfield-byte (space (space-name-context env))] bytenames))))
+  (let ((mask (bytes-bitmask (mapcar [bitfield-byte (space (environment-space-name-context env))] bytenames))))
     `(= (logand ,val ,mask) ,mask)))
 
 (defmacro bit-value (&environment env value bytename)
