@@ -44,12 +44,13 @@
   (:default-initargs :implemented-by nil))
 
 (defmethod print-object ((space space) stream)
-  (cl:format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S formats: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
+  (cl:format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S formats: ~S devtypes: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
              (space-name space)
              (space-documentation space) (if (listp (space-implemented-by space))
                                              (space-implemented-by space)
                                              (space-name (space-implemented-by space)))
              (maphash-values #'name (formats space))
+             (maphash-values #'name (devtypes space))
              (maphash-values #'name (banks space))
              (maphash-values #'name (registers space))
              (maphash-values #'device-hash-id (devices space))
