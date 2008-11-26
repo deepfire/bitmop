@@ -137,7 +137,8 @@
   ((id :accessor device-id :type (integer 0))
    (space :accessor device-space :type space)
    (type :type devtype :initarg :type)
-   (backend :accessor device-backend :type (or null device) :initarg :backend)))
+   (backend :accessor device-backend :type (or null device) :initarg :backend)
+   (category :initarg :category)))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
@@ -158,11 +159,13 @@
 (define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
 (define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
 
-(defun device-hash-id (device)
-  (list (type-of device) (device-id device)))
-
 (defun device-type (device)
-  (slot-value (devtype (device-space device) (type-of device)) 'type))
+  "Return the DEVICE's category, which is supposed to be a \"more
+   general type\", independent of flavor variations."
+  (slot-value* device 'category (type-of device)))
+
+(defun device-hash-id (device)
+  (list (device-type device) (device-id device)))
 
 (defun space-device (space type id)
   (find id (devtype-instances (devtype space type)) :key #'device-id))
@@ -173,7 +176,7 @@
 
 (defun create-device-register-instances (space device)
   "Walk the DEVICE's layouts and spawn the broodlings."
-  (iter (for bank-name in (devtype-banks (devtype space (type-of device))))
+  (iter (for bank-name in (devtype-banks (devtype space (device-type device))))
         (for bank = (bank space bank-name))
         (iter (for (the register register) in (layout-registers (bank-layout bank)))
               (for name = (format-symbol :keyword (reg-name-format register) (device-id device)))
@@ -181,7 +184,7 @@
                     (make-register-instance :name name :register register :bank bank)))))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
-  (let ((devtype (devtype space (type-of device))))
+  (let ((devtype (devtype space (device-type device))))
     ;; register within devtype to obtain the id
     (push device (devtype-instances devtype))
     (setf (device-id device) (length (devtype-instances devtype))
@@ -192,7 +195,7 @@
 (defun space-remove-device (device)
   (let ((space (device-space device)))
     (remhash (device-hash-id device) (devices space))
-    (removef (devtype-instances (devtype space (type-of device))) device)))
+    (removef (devtype-instances (devtype space (devie-type device))) device)))
 
 (defun purge-namespace-devices (space)
   (clrhash (devices space))
