@@ -3,7 +3,7 @@
   (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval)
   (:shadow #:space #:format #:documentation)
   (:export
-   #:space #:space-name #:environment-space-name-context #:space-name-context #:space-root #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:purge-namespace-devices #:list-spaces
+   #:space #:space-name #:environment-space-name-context #:space-name-context #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:purge-namespace-devices #:list-spaces
    #:name ;; this wants to go elsewhere.
    #:layout #:layout-space #:layout-registers #:define-layout
    #:bank #:bank-space #:define-bank #:with-banks #:register-bank #:bank-layout

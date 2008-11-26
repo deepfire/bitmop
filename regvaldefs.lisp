@@ -27,7 +27,6 @@
 (defclass space ()
   ((name :accessor space-name :type (or keyword list) :initarg :name)
    (documentation :accessor space-documentation :type string :initarg :documentation)
-   (implemented-by :accessor space-implemented-by :type (or space list) :initarg :implemented-by)
    (referrers :accessor space-referrers :initform nil :type list)
 
    (devices :accessor devices :initform (make-hash-table :test 'equal) :type hash-table)
@@ -39,15 +38,12 @@
    (registers :accessor registers :initform (make-hash-table) :type hash-table)
    (bitfields :accessor bitfields :initform (make-hash-table) :type hash-table)
    (bitfield-bytes :accessor bitfield-bytes :initform (make-hash-table) :type hash-table)
-   )
-  (:default-initargs :implemented-by nil))
+   ))
 
 (defmethod print-object ((space space) stream)
-  (cl:format stream "~@<#<SPACE:~;~A ~S implemented-by: ~S formats: ~S devtypes: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
+  (cl:format stream "~@<#<SPACE:~;~A ~S formats: ~S devtypes: ~S banks: ~S registers: ~S devices: ~S bankmap: ~S layouts: ~S~;>~:@>"
              (space-name space)
-             (space-documentation space) (if (listp (space-implemented-by space))
-                                             (space-implemented-by space)
-                                             (space-name (space-implemented-by space)))
+             (space-documentation space)
              (maphash-values #'name (formats space))
              (maphash-values #'name (devtypes space))
              (maphash-values #'name (banks space))
@@ -55,11 +51,6 @@
              (maphash-values #'device-hash-id (devices space))
              (maphash* #'list (bankmaps space))
              (maphash-values #'name (layouts space))))
-
-(defun space-root (space)
-  (if (space-implemented-by space)
-      (space-root (space-implemented-by space))
-      space))
 
 (defstruct (docunamed (:conc-name nil))
   (name nil :type symbol)
@@ -342,15 +333,12 @@
 ;;;;      ... survey
 ;;;
 (defmacro define-namespace (name &body f)
-  (let ((implemented-by (cadr (assoc :implemented-by f)))
-	(documentation (cadr (assoc :documentation f))))
+  (let ((documentation (cadr (assoc :documentation f))))
     `(eval-when (:compile-toplevel :load-toplevel)
        ,(once-only (name)
                    `(setf (space ,name)
                           (make-instance 'space :documentation ,documentation
-                                                :name ,name
-                                                ,@(when implemented-by
-                                                        `(:implemented-by (space ,implemented-by))))))
+                                                :name ,name)))
 
        (symbol-macrolet ((*space* ,name))
 	 ,@(mapcar [cons 'define-register-format] (cdr (assoc :register-formats f)))
@@ -364,8 +352,7 @@
   (let* ((spaces (mapcar #'space names))
 	 (unispace (make-instance 'space :name names
 					 :documentation (cl:format nil "Unified namespace of:~{ ~S~}."
-                                                                   (mapcar #'space-documentation spaces))
-					 :implemented-by spaces)))
+                                                                   (mapcar #'space-documentation spaces)))))
     (labels ((check-import-unispace (accessor-name key val)
 	       (let* ((accessor-fn (fdefinition accessor-name))
 		      (hash-table (funcall accessor-fn unispace)))

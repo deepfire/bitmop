@@ -26,7 +26,6 @@
 (in-package :regvaldefs-test)
 
 (define-namespace :foo
-  (:implemented-by nil)
   (:documentation "Foo device")
   (:register-formats
    (:fooreg "Foo-type register"
@@ -38,7 +37,6 @@
     (:fooreg		0 :format :fooreg :doc "foo register 0"))))
 
 (define-namespace :moobar
-  (:implemented-by nil)
   (:documentation "Bar device")
   (:register-formats
    (:mooreg "Moo-type register"
