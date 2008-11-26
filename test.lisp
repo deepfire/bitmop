@@ -149,7 +149,7 @@
           (devbits tdev :barreg (:bc)) (supervar))
     (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
-(deftest device-related device-runtime-queries-test (tdev)
+(deftest-expected-runtime-error type-error device-related device-runtime-queries-test (tdev)
   (let* ((unispace (space rvd::*space*))
          (devtype (devtype unispace (type-of tdev))))
     (expect-value '(:barreg)
