@@ -37,7 +37,6 @@
    (bankmaps :accessor bankmaps :initform (make-hash-table) :type hash-table)
    (banks :accessor banks :initform (make-hash-table) :type hash-table)
    (registers :accessor registers :initform (make-hash-table) :type hash-table)
-   (register-instances :accessor register-instances :initform (make-hash-table) :type hash-table)
    (bitfields :accessor bitfields :initform (make-hash-table) :type hash-table)
    (bitfield-bytes :accessor bitfield-bytes :initform (make-hash-table) :type hash-table)
    )
@@ -146,8 +145,10 @@
     (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
 
 (defvar *spaces* (make-hash-table :test #'equal))
+(defvar *register-instances* (make-hash-table :test #'eq))
 
 (define-container-hash-accessor *spaces* space)
+(define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
 (define-container-hash-accessor :i devtype :container-transform devtypes :parametrize-container t)
 (define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
@@ -155,7 +156,6 @@
 (define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
 (define-container-hash-accessor :i bankmap :container-transform bankmaps :parametrize-container t :type t :if-exists :continue)
 (define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register)
-(define-container-hash-accessor :i register-instance :container-transform register-instances :parametrize-container t :type register-instance :if-exists :error)
 (define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t)
 (define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
 (define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
