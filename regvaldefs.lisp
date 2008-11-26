@@ -480,7 +480,7 @@
             (reginstance-device register-instance) 
             (if (bank-pass-register bank) register (reg-selector register)))))
 
-(defun set-reginstance-value (value register-instance)
+(defun set-reginstance-value (register-instance value)
   (declare (type register-instance register-instance))
   (let ((bank (reginstance-bank register-instance))
         (register (reginstance-register register-instance)))
