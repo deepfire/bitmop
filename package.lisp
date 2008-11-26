@@ -6,7 +6,8 @@
    #:space #:space-name #:space-root #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:purge-namespace-devices #:list-spaces
    #:name ;; this wants to go elsewhere.
    #:layout #:layout-space #:layout-registers #:define-layout
-   #:bank #:bank-space #:define-bank #:with-banks #:register-bank
+   #:bank #:bank-space #:define-bank #:with-banks #:register-bank #:bank-layout
+   #:devtype #:devtype-banks #:devtype-instances
    #:register #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode
    #:byteval
