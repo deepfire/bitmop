@@ -97,7 +97,8 @@
   type ext)
 
 (defun make-register (&rest args &key name-format name &allow-other-keys)
-  (apply #'%make-register :name-format (or name-format (format nil "~A~^" name))))
+  (apply #'%make-register :name-format (or name-format (cl:format nil "~A~^" name))
+         (remove-from-plist args :name-format)))
 
 (defstruct (register-instance (:include spaced) (:conc-name reginstance-))
   "Instance of register."
