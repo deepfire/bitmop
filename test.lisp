@@ -35,7 +35,10 @@
 	    (:f2		1 2 "Parity Error Response")))
   (:layouts
    ((:foo "foo register layout")
-    (:fooreg		0 :format :fooreg :doc "foo register 0"))))
+    (:fooreg		0 :format :fooreg :doc "foo register 0")))
+  (:device-types
+   ((test-device "Test device abstract type.")
+    :foo)))
 
 (define-namespace :bar
   (:implemented-by nil)
@@ -53,7 +56,10 @@
 	    (:b4		1 4 "")))
   (:layouts
    ((:bar "bar register layout")
-    (:barreg		0 :format :barreg :doc "bar register 0"))))
+    (:barreg		0 :format :barreg :doc "bar register 0")))
+  (:device-types
+   ((test-device "Test device abstract type.")
+    :bar)))
 
 (defclass test-device (device)
   ((hash :accessor test-device-hash :initform (make-hash-table)))
