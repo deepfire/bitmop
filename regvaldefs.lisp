@@ -102,6 +102,7 @@
 
 (defstruct (register-instance (:include spaced) (:conc-name reginstance-))
   "Instance of register."
+  device
   register
   bank)
 
@@ -182,8 +183,8 @@
         (iter (for register in (layout-registers layout))
               (for name = (format-symbol :keyword (layout-name-format layout)
                                          (name register) (device-id device)))
-              (setf (register-instance space name)
-                    (make-register-instance :name name :register register :bank bank)))))
+              (setf (register-instance name)
+                    (make-register-instance :name name :register register :bank bank :device device)))))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
   (let ((devtype (devtype space (device-type device))))
