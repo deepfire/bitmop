@@ -90,7 +90,7 @@
   selector
   type ext)
 
-(defstruct (register-instance (:include spaced) (:conc-name reginstance-))
+(defstruct (register-instance (:include docunamed) (:conc-name reginstance-))
   "Instance of register."
   device
   register
@@ -146,25 +146,33 @@
 (define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
 (define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
 (define-container-hash-accessor :i bankmap :container-transform bankmaps :parametrize-container t :type t :if-exists :continue)
-(define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register)
-(define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t)
+(define-container-hash-accessor :i register :container-transform registers :parametrize-container t :type register :if-exists :error)
+(define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t :if-exists :error)
 (define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
 (define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
 
 (defun device-type (device)
   "Return the DEVICE's category, which is supposed to be a \"more
-   general type\", independent of flavor variations."
+   general type\", independent of flavor variations.
+
+   Used in:
+      - runtime device nomenclature (target-device, device-hash-id),
+      - device type lookups."
   (slot-value* device 'category (type-of device)))
+
+;;;; Devices can have variations. Variations might include the amount of
+;;;; banks, which isn't expressed directly by the current scheme.
+;;;;
+;;;; Our current approach seems to be simply declaring the banks to be devices,
+;;;; and have different platforms spawn a different amount of those devices.
+;;;;
+;;;; The decisive question is what factors into the register instance name.
 
 (defun device-hash-id (device)
   (list (device-type device) (device-id device)))
 
 (defun space-device (space type id)
   (find id (devtype-instances (devtype space type)) :key #'device-id))
-
-(defgeneric device-register-bank (device bank)
-  (:method ((device device) bank))
-  (:documentation ""))
 
 (defun create-device-register-instances (space device)
   "Walk the DEVICE's layouts and spawn the broodlings."
@@ -214,8 +222,6 @@
   (let* ((byte (byte size pos))
 	 (space (format-space format))
 	 (bitfield (make-bitfield :format% format :name name :spec byte :documentation doc)))
-    (when (gethash name (bitfields space))
-      (error "Attempt to redefine as existing bitfield ~S in namespace ~S~%" name (space-name space)))
     (push bitfield (format-bitfields format))
     (loop :for (value name documentation) :in bytevals
                                           :do (let ((byteval (make-byteval :name name :documentation documentation :byte byte :value value)))
@@ -237,9 +243,6 @@
      (define-register-format-notype (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',bitspecs)))
   
 (defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
-  (when (gethash name (registers (layout-space layout)))
-    (error "Attempt to redefine register ~S in namespace ~S."
-	   name (space-name (layout-space layout))))
   (let ((register (make-register :layout layout :name name :selector selector :documentation doc
                                  :format (when format (format (layout-space layout) format)) :ext ext
                                  :type (register-format-field-type format))))
@@ -267,7 +270,7 @@
       (t (dolist (reg registers)
            (setf (bankmap space (name reg)) t))))))
       
-(defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only)
+(defmacro define-bank (&environment env name layout-name accessor doc &key pass-register write-only name-format)
   `(progn
      (eval-when (:compile-toplevel :load-toplevel)
        (let* ((space (space ',(space-name (space (environment-space-name-context env)))))
@@ -285,7 +288,7 @@
               (bank (bank space ',name)))
          (unless (or (fboundp ,accessor)
                      (fboundp (list 'setf ,accessor)))
-           (error "No functions available for register set accessor ~S." ',name))
+           (error "No accesssor functions available for bank ~S." ',name))
          (when (fboundp ,accessor)
            (setf (bank-getter bank) (fdefinition ,accessor)))
          (when (fboundp (list 'setf ,accessor))
