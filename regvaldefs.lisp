@@ -94,6 +94,7 @@
   "Instance of register."
   device
   register
+  id
   bank)
 
 (defstruct (bank (:include spaced)
@@ -137,9 +138,11 @@
 
 (defvar *spaces* (make-hash-table :test #'equal))
 (defvar *register-instances* (make-hash-table :test #'eq))
+(defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
 (define-container-hash-accessor *spaces* space)
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
+(define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
 (define-container-hash-accessor :i devtype :container-transform devtypes :parametrize-container t)
 (define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
@@ -182,8 +185,11 @@
         (iter (for register in (layout-registers layout))
               (for name = (format-symbol :keyword (layout-name-format layout)
                                          (name register) (device-id device)))
-              (setf (register-instance name)
-                    (make-register-instance :name name :register register :bank bank :device device)))))
+              (let* ((id (hash-table-count *register-instances-by-id*))
+                     (instance (make-register-instance
+                                :name name :register register :bank bank :device device :id id)))
+                (setf (register-instance name) instance
+                      (register-instance-by-id id) instance)))))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
   (let ((devtype (devtype space (device-type device))))

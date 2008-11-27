@@ -9,7 +9,7 @@
    #:bank #:bank-space #:define-bank #:with-banks #:register-bank #:bank-layout
    #:devtype #:devtype-banks #:devtype-instances
    #:register #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
-   #:register-instance #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value
+   #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode
    #:byteval
    #:device #:id #:device-id #:device-type #:space-device #:device-space #:backend #:device-backend #:device-register #:space-remove-device
