@@ -554,3 +554,5 @@
 (defmacro bit-value (&environment env value bytename)
   (decode-context (space-name bankname space) nil `(,bytename) env
     `(ldb ',(bitfield-byte space bytename) ,value)))
+  "Find the bank correspoding to REGNAME in SPACE 
+   and the active bank DISAMBIGUATION set."
