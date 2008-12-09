@@ -259,16 +259,17 @@
            (setf (bank-setter bank) (fdefinition (list 'setf ,accessor))))))))
 
 (defun register-unambiguous-bank (space regname)
-  (let ((spec (bankmap space regname :if-does-not-exist :continue)))
-    (case spec
-      ((nil)
-       (when (gethash regname (registers space))
-	 (error "Register ~S is hashed in space ~S, but has no associated bank." regname space))
-       (error "Unknown register ~S in space ~S." regname space))
-      ((t) nil)
-      (t spec))))
+  (case-let (spec (bankmap space regname :if-does-not-exist :continue))
+    ((nil)
+     (when (gethash regname (registers space))
+       (error "Register ~S is hashed in space ~S, but has no associated bank." regname space))
+     (error "Unknown register ~S in space ~S." regname space))
+    ((t) nil)
+    (t spec)))
 
 (defun register-bank (space regname disambiguation)
+  "Find the bank correspoding to REGNAME in SPACE 
+   and the active bank DISAMBIGUATION set."
   (declare (type space space) (type symbol regname) (type list disambiguation))
   (or (register-unambiguous-bank space regname)
       (find (reg-layout (register space regname))
