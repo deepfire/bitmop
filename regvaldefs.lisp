@@ -349,9 +349,9 @@
 (defmacro set-namespace (&rest nsnames)
   (let* ((need-unification (> (length nsnames) 1))
 	 (name (if need-unification nsnames (first nsnames))))
-    (if-let ((orphan (find-if-not #'space nsnames)))
-	    (error "reference to an undefined namespace ~S" orphan))
-    `(eval-when (:compile-toplevel :load-toplevel :execute)
+    (when-let ((orphan (find-if-not #'space nsnames)))
+      (error "reference to an undefined namespace ~S" orphan))
+    `(progn
        ,@(when need-unification
 	       `((eval-when (:compile-toplevel :load-toplevel :execute)
                    (unify-namespaces ',nsnames))))
