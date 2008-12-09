@@ -203,7 +203,7 @@
 (defun space-remove-device (device)
   (let ((space (device-space device)))
     (remhash (device-hash-id device) (devices space))
-    (removef (devtype-instances (devtype space (devie-type device))) device)))
+    (removef (devtype-instances (devtype space (device-type device))) device)))
 
 (defun purge-namespace-devices (space)
   (clrhash (devices space))
