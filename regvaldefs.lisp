@@ -401,7 +401,7 @@
 	 (name (if need-unification nsnames (first nsnames))))
     (when-let ((orphan (find-if-not #'space nsnames)))
       (error "reference to an undefined namespace ~S" orphan))
-    `(progn
+    `(eval-when (:compile-toplevel :load-toplevel)
        ,@(when need-unification
 	       `((eval-when (:compile-toplevel :load-toplevel :execute)
                    (unify-namespaces ',nsnames))))
