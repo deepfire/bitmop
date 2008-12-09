@@ -335,7 +335,6 @@
     space-name))
 
 (defmacro with-namespaces ((&rest nsnames) &body body)
-  
   (let* ((need-unification (> (length nsnames) 1))
          (name (if need-unification nsnames (first nsnames))))
     (when-let ((orphan (find-if-not #'space nsnames)))
