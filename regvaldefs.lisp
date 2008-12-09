@@ -279,10 +279,10 @@
   (multiple-value-bind (val expanded-p) (macroexpand-1 '*banks* env)
     (when expanded-p val)))
 
-(defmacro with-banks (&environment env (&rest rsnames) &body body)
-  (if-let ((orphan (find-if-not [bank (space (space-name-context env))] rsnames)))
+(defmacro with-banks (&environment env (&rest names) &body body)
+  (if-let ((orphan (find-if-not [bank (space (space-name-context env))] names)))
 	  (error "Reference to an undefined register set ~S." orphan))
-  `(symbol-macrolet ((*banks* ,rsnames))
+  `(symbol-macrolet ((*banks* ,names))
      ,@body))
 
 ;;;
