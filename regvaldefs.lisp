@@ -75,7 +75,7 @@
 
 (defun make-layout (&rest args &key name-format &allow-other-keys)
   (apply #'%make-layout :name-format (or name-format (cl:format nil "~~A~~^"))
-         (remove-from-plist args :name-format)))
+	 (remove-from-plist args :name-format)))
 
 ;;;
 ;;; XXX: The naming is painfully inconsistent: REGISTER vs. REGISTER-INSTANCE,
@@ -85,6 +85,7 @@
 ;;;  
 (defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
+  aliases
   layout
   format
   selector
@@ -179,17 +180,20 @@
 
 (defun create-device-register-instances (space device)
   "Walk the DEVICE's layouts and spawn the broodlings."
-  (iter (for bank-name in (devtype-banks (devtype space (device-type device))))
-        (for bank = (bank space bank-name))
-        (for layout = (bank-layout bank))
-        (iter (for register in (layout-registers layout))
-              (for name = (format-symbol :keyword (layout-name-format layout)
-                                         (name register) (device-id device)))
-              (let* ((id (hash-table-count *register-instances-by-id*))
-                     (instance (make-register-instance
-                                :name name :register register :bank bank :device device :id id)))
-                (setf (register-instance name) instance
-                      (register-instance-by-id id) instance)))))
+  (labels ((name-to-reginstance-name (name layout device)
+	     (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
+    (iter (for bank-name in (devtype-banks (devtype space (device-type device))))
+	  (for bank = (bank space bank-name))
+	  (for layout = (bank-layout bank))
+	  (iter (for register in (layout-registers layout))
+		(let* ((name (name-to-reginstance-name (name register) layout device))
+		       (id (1+ (hash-table-count *register-instances-by-id*)))
+		       (instance (make-register-instance :name name :register register :bank bank :device device :id id)))
+		  (setf (register-instance-by-id id) instance)
+		  (iter (for riname in (cons name (mapcar (rcurry #'name-to-reginstance-name layout device)
+							  (reg-aliases register))))
+			(assert riname)
+			(setf (register-instance riname) instance)))))))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
   (let ((devtype (devtype space (device-type device))))
@@ -248,9 +252,10 @@
      (deftype ,(register-format-field-type name) () `(member ,,@(mapcar #'car bitspecs)))
      (define-register-format-notype (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',bitspecs)))
   
-(defun define-register (layout name selector &key (doc "Undocumented register.") format ext)
+(defun define-register (layout name selector &key (doc "Undocumented register.") aliases format ext)
   (let ((register (make-register :layout layout :name name :selector selector :documentation doc
                                  :format (when format (format (layout-space layout) format)) :ext ext
+				 :aliases aliases
                                  :type (register-format-field-type format))))
     (push register (layout-registers layout))
     (setf (gethash name (registers (layout-space layout))) register)))
