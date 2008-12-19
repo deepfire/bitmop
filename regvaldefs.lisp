@@ -145,7 +145,7 @@
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
 (define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
-(define-container-hash-accessor :i devtype :container-transform devtypes :parametrize-container t)
+(define-container-hash-accessor :i devtype :container-transform devtypes :parametrize-container t :iterator do-devtypes)
 (define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
 (define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
 (define-container-hash-accessor :i bank :container-transform banks :parametrize-container t)
@@ -204,14 +204,23 @@
           (gethash (device-hash-id device) (devices space)) device)
     (create-device-register-instances space device)))
 
+(defun space-device-count (space)
+  (hash-table-count (devices space)))
+
 (defun space-remove-device (device)
   (let ((space (device-space device)))
     (remhash (device-hash-id device) (devices space))
     (removef (devtype-instances (devtype space (device-type device))) device)))
 
-(defun purge-namespace-devices (space)
-  (clrhash (devices space))
-  (clrhash (devtypes space)))
+(defun init-device-model ()
+  "Forget all known device and register instances."
+  (iter (for (nil space) in-hashtable *spaces*)
+        (when (atom (space-name space))
+          (clrhash (devices space))
+          (do-devtypes (type space)
+            (setf (devtype-instances type) nil))))
+  (clrhash *register-instances*)
+  (clrhash *register-instances-by-id*))
 
 (define-condition bit-notation-condition (error) ())
 
@@ -336,9 +345,9 @@
 
 (defmacro define-devtype (&environment env (name doc) &rest banks)
   (with-gensyms (space)
-   `(let ((,space (space ,(space-name (space (environment-space-name-context env)))))) 
-      (setf (devtype ,space ',name)
-            (make-devtype :space ,space :name ',name :documentation ,doc :banks ',banks)))))
+    `(let ((,space (space ,(space-name (space (environment-space-name-context env)))))) 
+       (setf (devtype ,space ',name)
+             (make-devtype :space ,space :name ',name :documentation ,doc :banks ',banks)))))
 
 ;;;
 ;;;  o  layout templates
@@ -610,5 +619,3 @@
 (defmacro bit-value (&environment env value bytename)
   (decode-context (space-name bankname space) nil `(,bytename) env
     `(ldb ',(bitfield-byte space bytename) ,value)))
-  "Find the bank correspoding to REGNAME in SPACE 
-   and the active bank DISAMBIGUATION set."
