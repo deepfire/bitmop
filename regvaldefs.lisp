@@ -196,7 +196,8 @@
 			(setf (register-instance riname) instance)))))))
 
 (defmethod initialize-instance :after ((device device) &key space &allow-other-keys)
-  (let ((devtype (devtype space (device-type device))))
+  (let ((devtype (or (devtype space (device-type device) :if-does-not-exist :continue)
+		     (error "~@<There is no device type ~S. Have you forgot to define one?~:@>" (device-type device)))))
     ;; register within devtype to obtain the id
     (push device (devtype-instances devtype))
     (setf (device-id device) (1- (length (devtype-instances devtype)))
