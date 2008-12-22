@@ -1,14 +1,20 @@
 \#*
 *~
+*.c
+*.h
+*.data
 *.o
 *.a
 *.fas
 *.fasb
 *.fasl
 
+.bindings
+
 # win32
 *.manifest
 *.lib
+*.implib
 *.exp
 *.obj
 *.ilk
