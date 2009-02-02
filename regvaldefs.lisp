@@ -166,9 +166,6 @@
       - device type lookups."
   (slot-value* device 'category (type-of device)))
 
-;;;; Devices can have variations. Variations might include the amount of
-;;;; banks, which isn't expressed directly by the current scheme.
-;;;;
 ;;;; Our current approach seems to be simply declaring the banks to be devices,
 ;;;; and have different platforms spawn a different amount of those devices.
 ;;;;
