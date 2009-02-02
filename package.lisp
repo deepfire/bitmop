@@ -1,6 +1,6 @@
 (defpackage regvaldefs
   (:nicknames :rvd) 
-  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval)
+  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval :dictionary)
   (:shadow #:space #:format #:documentation)
   (:export
    #:space #:space-name #:environment-space-name-context #:space-name-context #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:space-device-count #:init-device-model #:list-spaces
