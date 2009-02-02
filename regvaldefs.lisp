@@ -482,6 +482,13 @@
                           ,regname (name (bank ,space ,bank)) (bank-context ,env)))))
        ,@body)))
 
+;;;
+;;; So, there are two register access schemes.
+;;; First way is to access registers via combination of device information
+;;; and abstract register name. This is good for debugger-internal code.
+;;; The second one derives all information from unique, device-specific
+;;; register instances. This is better suited for interactive use.
+;;;
 (defun device-register (device bank register)
   (declare (type device device) (type register register))
   (funcall (bank-getter bank)
