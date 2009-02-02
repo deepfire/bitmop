@@ -262,12 +262,14 @@
      (define-register-format-notype (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',bitspecs)))
   
 (defun define-register (layout name selector &key (doc "Undocumented register.") aliases format ext)
-  (let ((register (make-register :layout layout :name name :selector selector :documentation doc
-                                 :format (when format (format (layout-space layout) format)) :ext ext
-				 :aliases aliases
-                                 :type (register-format-field-type format))))
+  (let* ((space (layout-space layout))
+         (register (make-register :layout layout :name name :selector selector :documentation doc
+                                  :format (when format (format space format)) :ext ext
+                                  :aliases aliases
+                                  :type (register-format-field-type format))))
     (push register (layout-registers layout))
-    (setf (gethash name (registers (layout-space layout))) register)))
+    (setf (register-space name) space
+          (gethash name (registers space)) register)))))
 
 (defun define-layout-notype (space name documentation name-format registerspecs)
   (let ((layout (make-layout :name name :space space :documentation documentation
