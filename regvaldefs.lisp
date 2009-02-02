@@ -482,6 +482,16 @@
                           ,regname (name (bank ,space ,bank)) (bank-context ,env)))))
        ,@body)))
 
+(defun device-register (device bank register)
+  (declare (type device device) (type register register))
+  (funcall (bank-getter bank)
+	   device (if (bank-pass-register bank) register (reg-selector register))))
+
+(defun set-device-register (device bank register value)
+  (declare (type (unsigned-byte 32) value) (type device device) (type register register))
+  (funcall (bank-setter bank)
+           value device (if (bank-pass-register bank) register (reg-selector register))))
+
 (defun reginstance-value (register-instance)
   (declare (type register-instance register-instance))
   (let ((bank (reginstance-bank register-instance))
@@ -498,17 +508,8 @@
             value (reginstance-device register-instance) 
             (if (bank-pass-register bank) register (reg-selector register)))))
 
+(defsetf device-register set-device-register)
 (defsetf reginstance-value set-reginstance-value)
-
-(defun device-register (device bank register)
-  (declare (type device device) (type register register))
-  (funcall (bank-getter bank)
-	   device (if (bank-pass-register bank) register (reg-selector register))))
-
-(defun (setf device-register) (value device bank register)
-  (declare (type (unsigned-byte 32) value) (type device device) (type register register))
-  (funcall (bank-setter bank)
-	   value device (if (bank-pass-register bank) register (reg-selector register))))
     
 (defmacro devreg (&environment env device regname)
   (decode-context (space-name bankname) regname () env
@@ -517,9 +518,9 @@
 
 (define-setc-expander devreg (&environment env value device regname)
   (decode-context (space-name bankname) regname () env
-    `(setf (device-register ,device (load-time-value (bank (space ',space-name) ,bankname))
-			    (load-time-value (register (space ',space-name) ,regname)))
-	   ,(eeval value))))
+    `(set-device-register ,device (load-time-value (bank (space ',space-name) ,bankname))
+                          (load-time-value (register (space ',space-name) ,regname))
+                          ,(eeval value))))
 
 (defmacro decode (&environment env fmtname value &key (symbolise-unknowns t))
   (decode-context (space-name) nil () env
