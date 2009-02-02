@@ -138,10 +138,12 @@
     (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
 
 (defvar *spaces* (make-hash-table :test #'equal))
+(defvar *register-spaces* (make-hash-table :test 'eq))
 (defvar *register-instances* (make-hash-table :test #'eq))
 (defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
 (define-container-hash-accessor *spaces* space)
+(define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error)
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
 (define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
