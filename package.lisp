@@ -1,13 +1,12 @@
 (defpackage regvaldefs
   (:nicknames :rvd) 
-  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval :dictionary)
+  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval :dictionary #+sbcl sb-mop)
   (:shadow #:space #:format #:documentation)
   (:export
    #:space #:space-name #:environment-space-name-context #:space-name-context #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:space-device-count #:init-device-model #:list-spaces
    #:name ;; this wants to go elsewhere.
    #:layout #:layout-space #:layout-registers #:define-layout
-   #:bank #:bank-space #:define-bank #:with-banks #:register-bank #:bank-layout
-   #:devtype #:devtype-banks #:devtype-instances
+   #:device-class #:define-device-class
    #:register #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode

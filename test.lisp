@@ -55,17 +55,8 @@
 	    (:b4		1 4 "")))
   (:layouts
    ((:moo "moo register layout")
-    (:mooreg		0 :format :mooreg :doc "moo register 0"))
-   ((:bar "bar register layout")
-    (:barreg		0 :format :barreg :doc "bar register 0")))
-  (:device-types
-   ((test-device "Test device abstract type.")
-    :moo :bar)))
-
-(defclass test-device (device)
-  ((hash :accessor test-device-hash :initform (make-hash-table)))
-  (:default-initargs
-   :space (space :moobar)))
+    (:mooreg		0 :format :mooreg :doc "moo register 0")
+    (:barreg		1 :format :barreg :doc "bar register 0"))))
 
 (defun testreg (device selector)
   (declare (type test-device device))
@@ -75,10 +66,11 @@
   (declare (type test-device device))
   (setf (gethash selector (test-device-hash device)) val))
 
-(set-namespace :foo :moobar)
+(define-device-class test-device :moobar :moo (device)
+  ((hash :accessor test-device-hash :initform (make-hash-table)))
+  (:reader testreg) (:writer (setf testreg)))
 
-(define-bank :moo :moo 'testreg "moo bank")
-(define-bank :bar :bar 'testreg "bar bank")
+(set-namespace :foo :moobar)
 
 (defparameter tdev (make-instance 'test-device))
 
@@ -154,14 +146,14 @@
   (setf (devreg tdev :barreg) #xfeed)
   (expect-value #xfeed (reginstance-value (register-instance :barreg))))
 
-(deftest device-related device-runtime-queries-test (tdev)
-  (let* ((unispace (space (space-name-context)))
-         (devtype (devtype unispace (type-of tdev))))
-    (expect-value '(:mooreg :barreg)
-                  (iter (for layout in (mapcar (compose #'bank-layout (curry #'bank unispace))
-                                               (devtype-banks devtype)))
-                        (appending (mapcar #'name (layout-registers layout))))
-                  :test 'equal)))
+;; (deftest device-related device-runtime-queries-test (tdev)
+;;   (let* ((unispace (space (space-name-context)))
+;;          (devtype (devtype unispace (type-of tdev))))
+;;     (expect-value '(:mooreg :barreg)
+;;                   (iter (for layout in (mapcar (compose #'bank-layout (curry #'bank unispace))
+;;                                                (devtype-banks devtype)))
+;;                         (appending (mapcar #'name (layout-registers layout))))
+;;                   :test 'equal)))
 
 (defun run-tests (&rest test-suites)
   "Run a set of test suites. Defaults to PURE-EVALUATION and DEVICE-RELATED."
