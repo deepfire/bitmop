@@ -55,7 +55,8 @@
 	    (:b4		1 4 "")))
   (:layouts
    ((:moo "moo register layout")
-    (:mooreg		0 :format :mooreg :doc "moo register 0")
+    (:mooreg		0 :format :mooreg :doc "moo register 0"))
+   ((:bar "bar register layout")
     (:barreg		1 :format :barreg :doc "bar register 0"))))
 
 (defun testreg (device selector)
@@ -66,9 +67,10 @@
   (declare (type test-device device))
   (setf (gethash selector (test-device-hash device)) val))
 
-(define-device-class test-device :moobar :moo (device)
+(define-device-class test-device :moobar (device)
   ((hash :accessor test-device-hash :initform (make-hash-table)))
-  (:reader testreg) (:writer (setf testreg)))
+  (:layouts (:moo testreg (setf testreg))
+            (:bar testreg (setf testreg))))
 
 (set-namespace :foo :moobar)
 

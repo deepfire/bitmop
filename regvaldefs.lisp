@@ -84,6 +84,7 @@
   device
   register
   selector
+  reader writer
   id)
   
 (defstruct (byteval (:include spaced))
@@ -105,7 +106,7 @@
 (defvar *register-instances* (make-hash-table :test #'eq))
 (defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
-(define-container-hash-accessor *spaces* space)
+(define-container-hash-accessor *spaces* space :if-exists :continue)
 (define-container-hash-accessor *device-classes* device-class :iterator do-device-classes)
 (define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error)
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
@@ -128,22 +129,20 @@
 
 (defclass device-class (standard-class)
   ((register-selectors :accessor device-class-register-selectors :type (vector fixnum))
+   (readers :accessor device-class-readers :type (vector function) :documentation "Register ID-indexed reader lookup table.")
+   (writers :accessor device-class-writers :type (vector function) :documentation "Register ID-indexed writer lookup table.")
    (space :accessor device-class-space :type space)
-   (layout :accessor device-class-layout)
-   (reader :accessor device-class-reader :type function)
-   (writer :accessor device-class-writer :type function)
-   (instances :accessor device-class-instances :type list :initarg :instances))
+   (instances :accessor device-class-instances :type list :initarg :instances)
+   (layouts :accessor device-class-layouts :type list)
+   (layout-accessors :accessor device-class-layout-accessors :type list :initarg :layouts :documentation "Layout->accessor map."))
   (:default-initargs :instances nil))
 
-(defmacro define-device-class (name space layout superclasses slots &rest options)
+(defmacro define-device-class (name space superclasses slots &rest options)
   `(defclass ,name ,(or superclasses '(device))
      ,slots
      (:metaclass device-class)
      (:space . ,space)
-     (:layout . ,layout)
-     (:reader . ,(second (find :reader options :key #'first)))
-     (:writer . ,(second (find :writer options :key #'first)))
-     ,@(remove-if (lambda (x) (member x '(:metaclass :space :layout :reader :writer))) options :key #'car)))
+     ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)))
 
 (defmethod validate-superclass ((class device-class)
                                 (superclass standard-class))
@@ -152,8 +151,8 @@
 
 (defclass device ()
   ((register-selectors :accessor device-register-selectors :type (vector fixnum) :allocation :class) ; copied over from class
-   (reader :accessor device-reader :type function :allocation :class)                                ; ...
-   (writer :accessor device-writer :type function :allocation :class)                                ; ...
+   (readers :accessor device-readers :type (vector function) :allocation :class)                     ; ...
+   (writers :accessor device-writers :type (vector function) :allocation :class)                     ; ...
    (id :accessor device-id :type (integer 0))
    (backend :accessor device-backend :type (or null device) :initarg :backend)
    (category :initarg :category) ;; this might go away
@@ -164,19 +163,40 @@
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
     (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
 
-(defun build-device-class-selector-map (space layout)
-  (lret* ((dictionary (register-dictionary space))
-          (selector-map (make-array (length (dictionary-id-map dictionary)) :element-type 'fixnum :initial-element -1)))
-    (iter (for register in (layout-registers layout))
-          (for selector in (layout-register-selectors layout))
-          (setf (aref selector-map (symbol-id dictionary (name register))) selector))))
+(defun invalid-register-access-trap (&rest rest)
+  (declare (ignore rest))
+  (error "~@<Invalid register access.~:@>"))
 
-(defmethod initialize-instance :after ((o device-class) &key space layout reader writer &allow-other-keys)
+(defun build-device-class-maps (space layout-specs)
+  (let* ((dictionary (register-dictionary space))
+         (length (length (dictionary-id-map dictionary)))
+         (selector-map (make-array length :element-type 'fixnum :initial-element -1))
+         (reader-map (make-array length :element-type 'function :initial-element #'invalid-register-access-trap))
+         (writer-map (make-array length :element-type 'function :initial-element #'invalid-register-access-trap)))
+    (iter (for (layout-name reader-name writer-name) in layout-specs)
+          (let ((layout (layout space layout-name))
+                (reader (if reader-name (fdefinition reader-name) #'invalid-register-access-trap))
+                (writer (if writer-name (fdefinition writer-name) #'invalid-register-access-trap)))
+            (iter (for register in (layout-registers layout))
+                  (for register-id = (symbol-id dictionary (name register)))
+                  (for selector in (layout-register-selectors layout))
+                  (setf (aref selector-map register-id) selector
+                        (aref reader-map register-id) reader
+                        (aref writer-map register-id) writer))))
+    (values selector-map reader-map writer-map)))
+
+(defmethod initialize-instance ((o device-class) &rest initargs)
+  (apply #'shared-initialize o t (remove-from-plist initargs :space)))
+
+(defmethod reinitialize-instance ((o device-class) &rest initargs)
+  (apply #'shared-initialize o nil (remove-from-plist initargs :space)))
+
+(defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
   (let* ((space (space space))
-         (layout (layout space layout)))
-    (with-slots (register-selectors (space-slot space) (layout-slot layout) (reader-slot reader) (writer-slot writer)) o
-      (setf (values space-slot layout-slot reader-slot writer-slot) (values space layout (fdefinition reader) (fdefinition writer))
-            register-selectors (build-device-class-selector-map space layout)
+         (layout-instances (mapcar (compose (curry #'layout space) #'first) layouts)))
+    (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) o
+      (setf (values space-slot layouts-slot) (values space layout-instances)
+            (values register-selectors readers-slot writers-slot) (build-device-class-maps space layouts)
             (device-class (class-name o)) o))))
 
 (defun device-type (device)
@@ -197,17 +217,18 @@
 (defun find-device (type id)
   (find id (device-class-instances (find-class type)) :key #'device-id))
 
-(defun create-device-register-instances (device)
+(defun create-device-register-instances (device &aux (device-class (class-of device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
   (labels ((name-to-reginstance-name (name layout device)
 	     (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
-    (let* ((class (class-of device))
-           (layout (device-class-layout class)))
+    (iter (for layout in (device-class-layouts device-class))
+          (for (nil reader-name writer-name) in (device-class-layout-accessors device-class))
       (iter (for register in (layout-registers layout))
             (for selector in (layout-register-selectors layout))
             (let* ((name (name-to-reginstance-name (name register) layout device))
                    (id (1+ (hash-table-count *register-instances-by-id*)))
-                   (instance (make-register-instance :name name :register register :device device :selector selector :id id)))
+                   (instance (make-register-instance :name name :register register :device device :selector selector :id id
+                                                     :reader (fdefinition reader-name) :writer (fdefinition writer-name))))
               (setf (register-instance-by-id id) instance)
               (iter (for riname in (cons name (mapcar (rcurry #'name-to-reginstance-name layout device)
                                                       (reg-aliases register))))
@@ -219,8 +240,8 @@
     (push device (device-class-instances device-class))
     (setf (device-id device) (1- (length (device-class-instances device-class)))
           (device-register-selectors device) (device-class-register-selectors device-class)
-          (device-reader device) (device-class-reader device-class)
-          (device-writer device) (device-class-writer device-class)
+          (device-readers device) (device-class-readers device-class)
+          (device-writers device) (device-class-writers device-class)
           ;; register within space
           (gethash (device-hash-id device) (devices (device-class-space device-class))) device)
     (create-device-register-instances device)))
@@ -445,21 +466,21 @@
 ;;;
 (defun device-register (device register-id)
   (declare (type device device) (type fixnum register-id))
-  (funcall (device-reader device) device (aref (device-register-selectors device) register-id)))
+  (funcall (aref (device-readers device) register-id) device (aref (device-register-selectors device) register-id)))
 
 (defun set-device-register (device register-id value)
   (declare (type device device) (type (unsigned-byte 32) value))
-  (funcall (device-writer device) value device (aref (device-register-selectors device) register-id)))
+  (funcall (aref (device-writers device) register-id) value device (aref (device-register-selectors device) register-id)))
 
 (defun reginstance-value (register-instance)
   (declare (type register-instance register-instance))
   (let ((device (reginstance-device register-instance)))
-   (funcall (device-reader device) device (reginstance-selector register-instance))))
+   (funcall (reginstance-reader register-instance) device (reginstance-selector register-instance))))
 
 (defun set-reginstance-value (register-instance value)
   (declare (type register-instance register-instance))
   (let ((device (reginstance-device register-instance)))
-    (funcall (device-writer device) value device (reginstance-selector register-instance))))
+    (funcall (reginstance-writer register-instance) value device (reginstance-selector register-instance))))
 
 (defsetf device-register set-device-register)
 (defsetf reginstance-value set-reginstance-value)
