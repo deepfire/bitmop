@@ -136,6 +136,19 @@
    (layout-accessors :accessor device-class-layout-accessors :type list :initarg :layouts :documentation "Layout->accessor map."))
   (:default-initargs :instances nil))
 
+(defun invalid-register-access-trap (&rest rest)
+  (declare (ignore rest))
+  (error "~@<Invalid register access.~:@>"))
+
+(defmethod device-class-reader ((o device-class) (i fixnum)) (aref (device-class-readers o) i))
+(defmethod device-class-writer ((o device-class) (i fixnum)) (aref (device-class-writers o) i))
+(defmethod set-device-class-reader ((o device-class) (i fixnum) (fn function)) (setf (aref (device-class-readers o) i) fn))
+(defmethod set-device-class-writer ((o device-class) (i fixnum) (fn function)) (setf (aref (device-class-writers o) i) fn))
+(defmethod set-device-class-reader ((o device-class) (i fixnum) (fn null)) (setf (aref (device-class-readers o) i) #'invalid-register-access-trap))
+(defmethod set-device-class-writer ((o device-class) (i fixnum) (fn null)) (setf (aref (device-class-writers o) i) #'invalid-register-access-trap))
+(defsetf device-class-reader set-device-class-reader)
+(defsetf device-class-writer set-device-class-writer)
+
 (defmacro define-device-class (name space superclasses slots &rest options)
   `(defclass ,name ,(or superclasses '(device))
      ,slots
@@ -161,10 +174,6 @@
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
     (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
-
-(defun invalid-register-access-trap (&rest rest)
-  (declare (ignore rest))
-  (error "~@<Invalid register access.~:@>"))
 
 (defun build-device-class-maps (space layout-specs)
   (let* ((dictionary (register-dictionary space))
