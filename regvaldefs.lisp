@@ -139,9 +139,9 @@
 (defmacro define-device-class (name space superclasses slots &rest options)
   `(defclass ,name ,(or superclasses '(device))
      ,slots
-     (:metaclass device-class)
+     (:metaclass ,(or (second (assoc :metaclass options)) 'device-class))
      (:space . ,space)
-     ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)))
+     ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first))) ;; YYY: REMOVE-FROM-ALIST
 
 (defmethod validate-superclass ((class device-class)
                                 (superclass standard-class))
