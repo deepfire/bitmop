@@ -322,9 +322,11 @@
       (setf (register-space name) space))
     (add-symbol (register-dictionary space) name register nil)))
 
-(defun ensure-layout (space name documentation name-format register-specs)
+(defun ensure-layout (space name documentation name-format register-specs &aux (selectors (mapcar #'second register-specs)))
+  (unless (every (of-type 'fixnum) selectors)
+    (error "~@<While defining layout ~S: register selectors must be of type FIXNUM.~:@>" name))
   (lret ((layout (make-layout :name name :space space :documentation documentation
-                              :register-selectors (mapcar #'second register-specs) :name-format name-format)))
+                              :register-selectors selectors :name-format name-format)))
     (setf (gethash name (layouts space)) layout
           (layout-registers layout) (iter (for (name selector . rest) in register-specs)
                                           (collect (apply #'define-register layout name rest))))))
