@@ -184,9 +184,11 @@
                         (aref writer-map register-id) writer))))
     (values selector-map reader-map writer-map)))
 
+;;;
+;;; XXX: not pretty: hack around non-&allow-other-keys-able initargs...
+;;;
 (defmethod initialize-instance ((o device-class) &rest initargs)
   (apply #'shared-initialize o t (remove-from-plist initargs :space)))
-
 (defmethod reinitialize-instance ((o device-class) &rest initargs)
   (apply #'shared-initialize o nil (remove-from-plist initargs :space)))
 
