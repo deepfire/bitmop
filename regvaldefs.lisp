@@ -448,6 +448,8 @@
           (return space))))
 
 (defmacro decode-context ((spacename &optional space-want bitfield fmtname) regname bytenames &body body)
+  (unless (or regname bytenames)
+    (error "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
   (let ((space (or space-want (gensym))) (newbytenames (gensym)))
     `(let* ((,space ,(if regname `(register-space ,regname) `(find-space-with-bytenames (ensure-list ,bytenames)))) (,spacename (space-name ,space))
             ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
