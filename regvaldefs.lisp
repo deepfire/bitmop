@@ -192,12 +192,15 @@
   (apply #'shared-initialize o nil (remove-from-plist initargs :space)))
 
 (defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
-  (let* ((space (space space))
-         (layout-instances (mapcar (compose (curry #'layout space) #'first) layouts)))
-    (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) o
-      (setf (values space-slot layouts-slot) (values space layout-instances)
-            (values register-selectors readers-slot writers-slot) (build-device-class-maps space layouts)
-            (device-class (class-name o)) o))))
+  (if space
+      (let* ((space (space space))
+             (layout-instances (mapcar (compose (curry #'layout space) #'first) layouts)))
+        (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) o
+          (setf (values space-slot layouts-slot) (values space layout-instances)
+                (values register-selectors readers-slot writers-slot) (build-device-class-maps space layouts)
+                (device-class (class-name o)) o)))
+      (when layouts
+        (error "~@<During initialization of device class ~S: layouts can not specified without space.~:@>" (class-name o)))))
 
 (defun device-type (device)
   "Return the DEVICE's category, which is supposed to be a \"more
