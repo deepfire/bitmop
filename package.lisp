@@ -7,7 +7,7 @@
    #:name ;; this wants to go elsewhere.
    #:layout #:layout-space #:layout-registers #:define-layout
    #:device-class #:define-device-class #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
-   #:register #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
+   #:register #:register-id #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode
    #:byteval
