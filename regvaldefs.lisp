@@ -30,7 +30,6 @@
    (referrers :accessor space-referrers :initform nil :type list)
 
    (devices :accessor devices :initform (make-hash-table :test 'equal) :type hash-table)
-   (formats :accessor formats :initform (make-hash-table) :type hash-table)
    (layouts :accessor layouts :initform (make-hash-table) :type hash-table)
    (registers :accessor register-dictionary :initform (make-dictionary) :type dictionary)
    (bitfields :accessor bitfields :initform (make-hash-table) :type hash-table)
@@ -38,10 +37,9 @@
    ))
 
 (defmethod print-object ((space space) stream)
-  (cl:format stream "~@<#<SPACE:~;~A ~S formats: ~S registers: ~S devices: ~S layouts: ~S~;>~:@>"
+  (cl:format stream "~@<#<SPACE:~;~A ~S registers: ~S devices: ~S layouts: ~S~;>~:@>"
              (space-name space)
              (space-documentation space)
-             (maphash-values #'name (formats space))
              (map 'list #'name (dictionary::dictionary-ids-to-values (register-dictionary space)))
              (maphash-values #'device-hash-id (devices space))
              (maphash-values #'name (layouts space))))
@@ -102,17 +100,18 @@
 
 (defvar *spaces* (make-hash-table :test #'equal))
 (defvar *device-classes* (make-hash-table :test 'eq))
+(defvar *register-formats* (make-hash-table :test 'eq))
 (defvar *register-spaces* (make-hash-table :test 'eq))
 (defvar *register-instances* (make-hash-table :test #'eq))
 (defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
 (define-container-hash-accessor *spaces* space :if-exists :continue)
 (define-container-hash-accessor *device-classes* device-class :iterator do-device-classes)
+(define-container-hash-accessor *register-formats* format :type format)
 (define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error)
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
 (define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
-(define-container-hash-accessor :i format :container-transform formats :parametrize-container t)
 (define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
 (define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t :if-exists :error)
 (define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
@@ -304,7 +303,7 @@
 (defun define-register-format-notype (space name documentation bitspecs)
   (let ((format (make-format :name name :documentation documentation :space space)))
     (mapc [apply [define-bitfield format]] bitspecs)
-    (setf (gethash name (formats space)) format)))
+    (setf (format name) format)))
 
 (defmacro define-register-format (&environment env name doc &rest bitspecs)
   `(eval-when (:compile-toplevel :load-toplevel)
@@ -314,7 +313,7 @@
 (defun define-register (layout name &key (doc "Undocumented register.") aliases format ext)
   (lret* ((space (layout-space layout))
           (register (make-register :layout layout :name name :space space :documentation doc
-                                   :format (when format (format space format)) :ext ext
+                                   :format (when format (format format)) :ext ext
                                    :aliases aliases
                                    :type (register-format-field-type format))))
     ;; YYY: this is a kludge: a proper EVAL-WHEN somewhere is direly needed...
@@ -364,7 +363,7 @@
 		 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
-	(dolist (accessor-name '(formats bitfields bitfield-bytes layouts))
+	(dolist (accessor-name '(bitfields bitfield-bytes layouts))
 	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
 	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
     (setf (space names) unispace)))
@@ -499,10 +498,9 @@
   `(set-device-register ,device (load-time-value (register-id ,regname)) ,(eeval value)))
 
 (defmacro decode (fmtname value &key (symbolise-unknowns t))
-  (decode-context (space-name) nil ()
-    (if (constant-p fmtname) ;; we won't do the same for other obvious cases
-        `(format-decode (load-time-value (format (space ',space-name) ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
-        `(format-decode (format (space ',space-name) ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns))))
+  (if (constant-p fmtname) ;; we won't do the same for other obvious cases
+      `(format-decode (load-time-value (format ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
+      `(format-decode (format ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns)))
 
 (defmacro devbit-decode (device regname bytename)
   (decode-context (space-name space bitfield) regname `(,bytename)
@@ -511,7 +509,7 @@
 
 (defmacro devreg-decode (device regname)
   (decode-context (space-name space bitfield fmtname) regname ()
-    `(format-decode (load-time-value (format (space ',space-name) ,fmtname))
+    `(format-decode (load-time-value (format ,fmtname))
 		    (device-register ,device (load-time-value (register-id ,regname))))))
 
 (defmacro devbit (device regname bytename)
