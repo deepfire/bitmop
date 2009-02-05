@@ -6,7 +6,7 @@
    #:space #:space-name #:environment-space-name-context #:space-name-context #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:space-device-count #:init-device-model #:list-spaces
    #:name ;; this wants to go elsewhere.
    #:layout #:layout-space #:layout-registers #:define-layout
-   #:device-class #:define-device-class #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
+   #:device-class #:define-device-class #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
    #:register #:register-id #:reg-format #:reg-selector #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode

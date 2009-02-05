@@ -140,6 +140,7 @@
   (declare (ignore rest))
   (error "~@<Invalid register access.~:@>"))
 
+(defmethod device-class-register-selector ((o device-class) (i fixnum)) (aref (device-class-register-selectors o) i))
 (defmethod device-class-reader ((o device-class) (i fixnum)) (aref (device-class-readers o) i))
 (defmethod device-class-writer ((o device-class) (i fixnum)) (aref (device-class-writers o) i))
 (defmethod set-device-class-reader ((o device-class) (i fixnum) (fn function)) (setf (aref (device-class-readers o) i) fn))
