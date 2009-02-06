@@ -24,6 +24,9 @@
   (enable-curry-reader)
   (enable-compose-reader))
 
+(defvar *log-stream* *standard-output*)
+(defvar *verbose-device-init-p* t)
+
 (defclass space ()
   ((name :accessor space-name :type (or keyword list) :initarg :name)
    (documentation :accessor space-documentation :type string :initarg :documentation)
@@ -118,26 +121,38 @@
 (define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
 
 ;; This one stands out: going through dictionaries.
+(declaim (ftype (function (space symbol) register)))
 (defun register (space name)
   (declare (space space) (keyword name))
   (translation (register-dictionary space) name))
 
+(declaim (ftype (function (symbol) fixnum) register-id))
 (defun register-id (name)
   (declare (keyword name))
   (symbol-id (register-dictionary (register-space name)) name))
+
+(declaim (ftype (function (space fixnum) register) register-by-id))
+(defun register-by-id (space id)
+  (declare (space space) (fixnum id))
+  (id-value (register-dictionary space) id))
+
+(declaim (ftype (function (symbol symbol) fixnum) register-selector))
+(defun register-selector (register-name layout-name)
+  (declare (symbol register-name layout-name))
+  (let* ((space (register-space register-name))
+         (layout (layout space layout-name)))
+    (nth (position register-name (layout-registers layout) :key #'name) (layout-register-selectors layout))))
 
 (defclass device-class (standard-class)
   ((register-selectors :accessor device-class-register-selectors :type (vector fixnum) :documentation "ID-indexed register selector lookup table.")
    (readers :accessor device-class-readers :type (vector function) :documentation "ID-indexed register reader lookup table.")
    (writers :accessor device-class-writers :type (vector function) :documentation "ID-indexed register writer lookup table.")
-   (space :accessor device-class-space :type space)
-   (instances :accessor device-class-instances :type list :initarg :instances)
+   (space :accessor device-class-space :type (or space null))
    (layouts :accessor device-class-layouts :type list)
-   (layout-accessors :accessor device-class-layout-accessors :type list :initarg :layouts :documentation "Original layout->accessors alist."))
-  (:default-initargs :instances nil))
+   (layout-accessors :accessor device-class-layout-accessors :type list :initarg :layouts :documentation "Original layout->accessors alist.")))
 
 (defclass extended-register-device-class (device-class)
-  ((extensions :accessor device-class-extensions :type (vector vector) :documentation "ID-indexed storage for extended register information.")))
+  ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
 
 (defun invalid-register-access-trap (&rest rest)
   (declare (ignore rest))
@@ -156,31 +171,55 @@
 (defun device-class-p (class &aux (type (class-name class)))
   (and (subtypep type 'device) (not (member type '(device extended-register-device)))))
 
-(defmacro define-device-class (name space provided-superclasses slots &rest options)
+(defun remove-if-not-subtype-of (type types)
+  (remove-if-not (rcurry #'subtypep type) types))
+
+(defun metaclass-relevant-supers (superclasses)
+  (remove-if-not-subtype-of 'device superclasses))
+
+(defun compute-metaclass (provided-metaclass provided-superclasses)
+  (let ((default-metaclass (if (first (remove-if-not-subtype-of 'extended-register-device (metaclass-relevant-supers provided-superclasses)))
+                               'extended-register-device-class
+                               'device-class))) ;; note how this properly defaults to 'device-class when there's no M-R-S
+    (or provided-metaclass default-metaclass)))
+
+(defun compute-superclasses (provided-metaclass provided-superclasses)
+  (let ((default-superclasses (case provided-metaclass
+                                (extended-register-device-class 'extended-register-device)
+                                ((device-class nil) 'device))))
+    (append provided-superclasses (unless (metaclass-relevant-supers provided-superclasses)
+                                    (list default-superclasses)))))
+
+(defmacro define-device-subclass (name space provided-superclasses slots &rest options)
   (let* ((provided-metaclass (second (assoc :metaclass options)))
-         (default-superclass (case provided-metaclass
-                               (extended-register-device-class 'extended-register-device)
-                               ((device-class nil) 'device)))
-         (metaclass-relevant-supers (remove-if-not (rcurry #'subtypep 'device) provided-superclasses))
-         (default-metaclass (if (find-if (rcurry #'subtypep 'extended-register-device) metaclass-relevant-supers)
-                                'extended-register-device-class
-                                'device-class)) ;; note how this properly defaults to 'device-class when there's no M-R-S
-         (metaclass (or provided-metaclass default-metaclass))
-         (superclasses (if metaclass-relevant-supers
-                           provided-superclasses
-                           (append provided-superclasses (list default-superclass)))))
+         (metaclass (compute-metaclass provided-metaclass provided-superclasses)))
     ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
-    `(defclass ,name ,superclasses
-       ,slots
-       (:metaclass ,metaclass)
-       (:space . ,space)
-       ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)))) ;; YYY: REMOVE-FROM-ALIST
+    ;; (cl:format t "D-D-C ~S: defaults: metaclass: ~S, superclass: ~S;  provided: metaclass: ~S, superclasses: ~S;  final: metaclass: ~S, superclasses: ~S~%"
+    ;;            name default-metaclass default-superclass provided-metaclass provided-superclasses metaclass superclasses)
+    ;; (finish-output)
+    `(progn
+       (defclass ,name ,(compute-superclasses provided-metaclass provided-superclasses)
+         (,@slots
+          (register-selectors :allocation :class)
+          (readers :allocation :class)
+          (writers :allocation :class)
+          ,@(when (eq metaclass 'extended-register-device-class)
+                  `((extensions :allocation :class))))
+         (:metaclass ,metaclass)
+         (:space . ,space)
+         ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)) ;; YYY: REMOVE-FROM-ALIST
+       (eval-when (:load-toplevel :execute)
+         (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options)))))))
 
-(defmethod validate-superclass ((class device-class) (superclass standard-class))
-  t)
+(defmacro define-device-class (name space provided-superclasses slots &rest options)
+  `(define-device-subclass ,name ,space (,@provided-superclasses)
+     (,@slots
+      (instances :accessor instances :type list :initarg :instances :initform nil :allocation :class))
+     ,@options))
 
-(defmethod validate-superclass ((class extended-register-device-class) (superclass device-class))
-  t)
+(defmethod validate-superclass ((class device-class) (superclass standard-class)) t)
+
+(defmethod validate-superclass ((class extended-register-device-class) (superclass device-class)) t)
 
 (defclass device ()
   ((register-selectors :accessor device-register-selectors :type (vector fixnum) :allocation :class) ; copied over from class
@@ -199,6 +238,11 @@
 (defclass extended-register-device (device)
   ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
   (:metaclass extended-register-device-class))
+
+(declaim (ftype (function (device fixnum) fixnum) device-register-selector))
+(defun device-register-selector (device id)
+  (declare (device device) (fixnum id))
+  (aref (device-register-selectors device) id))
 
 (declaim (ftype (function ((or symbol (cons (member setf) (cons symbol null)))) function) compute-accessor-function))
 (defun compute-accessor-function (name)
@@ -220,6 +264,10 @@
                   (setf (aref selector-map register-id) selector
                         (aref reader-map register-id) reader
                         (aref writer-map register-id) writer))))
+    ;; (cl:format t "B-D-C-M: space: ~S, layouts ~S. dictionary: ~X~%sels: ~S, rs: ~S, ws: ~S~%"
+    ;;            (space-name space) (mapcar #'car layout-specs) (sb-kernel::get-lisp-obj-address (register-dictionary space))
+    ;;            selector-map reader-map writer-map)
+    (finish-output)
     (values selector-map reader-map writer-map)))
 
 ;;;
@@ -237,20 +285,20 @@
                           (mapcar (compose #'list #'name) direct-layout-instances)
                           :key #'car)))
 
-(defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
+(defun initialize-device-class (device-class space layouts)
+  (declare (device-class device-class) ((or null space) space) (list layouts))
   (if space
-      (let* ((space (space space))
-             (eligible-parents (remove-if-not (lambda (parent) (and (device-class-p parent) (device-class-space parent))) (class-direct-superclasses o))))
+      (let* ((eligible-parents (remove-if-not (lambda (parent) (and (device-class-p parent) (device-class-space parent))) (class-direct-superclasses device-class))))
         (when-let ((misspaced (remove-if (curry #'eq space) (mapcar #'device-class-space eligible-parents))))
-          (error "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>" (class-name o) (space-name space) (mapcar #'space-name misspaced)))
+          (error "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>" (class-name device-class) (space-name space) (mapcar #'space-name misspaced)))
         (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) layouts)))
           (multiple-value-bind (inherited-layout-instances inherited-layout-accessors) (compute-inherited-layouts direct-layout-instances eligible-parents)
-            (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) o
+            (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) device-class
               ;; fill in the basics, register self and fill in directly provided selector/reader/writer maps
               (setf (values space-slot layouts-slot) (values space (append inherited-layout-instances direct-layout-instances))
                     (values register-selectors readers-slot writers-slot) (build-device-class-maps space layouts)
-                    (device-class-layout-accessors o) (append inherited-layout-accessors layouts)
-                    (device-class (class-name o)) o)
+                    (device-class-layout-accessors device-class) (append inherited-layout-accessors layouts)
+                    (device-class (class-name device-class)) device-class)
               ;; compute and patch maps with selector/reader/writer values from inherited layouts
               (dolist (inhayout inherited-layout-instances)
                 (let* ((providing-parent (find inhayout eligible-parents :key #'device-class-layouts :test #'member)))
@@ -261,18 +309,46 @@
                                   (aref readers-slot register-id) (aref parent-readers register-id)
                                   (aref writers-slot register-id) (aref parent-writers register-id)))))))))))
       (if layouts
-          (error "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" (class-name o))
+          (error "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" (class-name device-class))
           ;; Messing with initargs would be way too painful...
-          (with-slots (space layouts layout-accessors) o (setf (values space layouts layout-accessors) (values nil nil nil))))))
+          (with-slots (space layouts layout-accessors register-selectors readers writers) device-class
+            (setf (values space layouts layout-accessors register-selectors readers writers)
+                  (values nil nil nil (make-array 0 :element-type 'fixnum)
+                          (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity)))))))
 
-(defun build-device-class-extension-map (space layouts)
+(defun reinitialize-device-class (device-class &aux (device-class (xform-if #'symbolp #'find-class device-class)))
+  "Reinitialize DEVICE-CLASS according to its SPACE and LAYOUT-ACCESSORS slots."
+  (initialize-device-class device-class (device-class-space device-class) (device-class-layout-accessors device-class)))
+
+(defun maybe-reinitialize-device-class (device-class space-name layout-accessors)
+  "Reinitialize an already defiden DEVICE-CLASS according to SPACE-NAME and 
+   LAYOUT-ACCESSORS, when they differ from stored values."
+  (unless (and (or (and (null space-name) (null (device-class-space device-class)))
+                   (when-let ((space (device-class-space device-class)))
+                     (eq (space-name space) space-name)))
+               (equal (device-class-layout-accessors device-class) layout-accessors))
+    (with-slots (space layout-accessors) device-class
+      (setf (values space layout-accessors) (values (space space-name) layout-accessors)))
+    (reinitialize-device-class device-class)))
+
+(defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
+  (initialize-device-class o (when space (space space)) layouts))
+
+(defun build-device-class-extension-map (space layout-names)
   (lret* ((dictionary (register-dictionary space))
           (length (length (dictionary-id-map dictionary)))
           (extension-map (make-array length :element-type 'vector :initial-element #())))
-    (dolist (layout layouts)
-      (iter (for register in (layout-registers layout))
-            (for register-id = (symbol-id dictionary (name register)))
-            (setf (aref extension-map register-id) (map 'vector #'identity (reg-ext register)))))))
+    (let ((candidate-extensions (iter outer
+                                      (for layout-name in layout-names)
+                                      (for layout = (layout space layout-name))
+                                      (iter (for register in (layout-registers layout))
+                                            (for selector in (layout-register-selectors layout))
+                                            (in outer (collect (cons selector (map 'vector #'identity (reg-ext register)))))))))
+      (unless (= (length (remove-duplicates candidate-extensions :key #'car))
+                 (length candidate-extensions))
+        (error "~@<Cannot build a register extension map for intersecting layouts: ~S~:@>" layout-names))
+      (iter (for (selector . extension) in candidate-extensions)
+            (setf (aref extension-map selector) extension)))))
 
 ;;;
 ;;; XXX: not pretty: hack around non-&allow-other-keys-able initargs...
@@ -287,7 +363,7 @@
     (when-let ((missing (remove-if (rcurry #'assoc (device-class-layout-accessors o)) extended-layouts)))
       (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
              (class-name o) missing))
-    ;; XXX: no inheritance for these maps...
+    ;; XXX: no inheritance for these maps... complicated composition. Not unsurmountable, though.
     (setf (device-class-extensions o) (build-device-class-extension-map (device-class-space o) extended-layouts))))
 
 (defun device-type (device)
@@ -304,9 +380,6 @@
 ;;;;
 (defun device-hash-id (device)
   (list (device-type device) (device-id device)))
-
-(defun find-device (type id)
-  (find id (device-class-instances (find-class type)) :key #'device-id))
 
 (defun create-device-register-instances (device &aux (device-class (class-of device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
@@ -326,15 +399,28 @@
                     (assert riname)
                     (setf (register-instance riname) instance)))))))
 
+(defmethod initialize-instance :around ((device device) &key &allow-other-keys)
+  (when *verbose-device-init-p*
+    (cl:format *log-stream* "--( initializing ~S: " (type-of device))
+    (finish-output *log-stream*))
+  (call-next-method)
+  (when *verbose-device-init-p*
+    (cl:format *log-stream* "ok.~%")
+    (finish-output *log-stream*)))
+
 (defmethod initialize-instance :after ((device device) &key &allow-other-keys)
-  (let ((device-class (class-of device)))
-    (push device (device-class-instances device-class))
-    (setf (device-id device) (1- (length (device-class-instances device-class)))
+  (let* ((device-class (class-of device))
+         (space (device-class-space device-class)))
+    (unless space
+      (error "~@<During device initialization: type ~S claims no space.~:@>" (type-of device)))
+    (push device (instances device))
+    (setf (device-id device) (1- (length (instances device)))
           (device-register-selectors device) (device-class-register-selectors device-class)
           (device-readers device) (device-class-readers device-class)
           (device-writers device) (device-class-writers device-class)
           ;; register within space
-          (gethash (device-hash-id device) (devices (device-class-space device-class))) device)
+          (gethash (device-hash-id device) (devices space)) device)
+    ;; (cl:format t "Initialized ~S/~S: ~S, ~S, ~S~%" (class-name (class-of device)) (device-id device) (device-register-selectors device) (device-readers device) (device-writers device))
     (create-device-register-instances device)))
 
 (defmethod initialize-instance :after ((device extended-register-device) &key &allow-other-keys)
@@ -347,15 +433,19 @@
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
     (remhash (device-hash-id device) (devices space))
-    (removef (device-class-instances device-class) device)))
+    (removef (instances device) device)))
 
 (defun init-device-model ()
   "Forget all known device and register instances."
   (iter (for (nil space) in-hashtable *spaces*)
         (when (atom (space-name space))
-          (clrhash (devices space))
-          (do-device-classes (device-class)
-            (setf (device-class-instances device-class) nil))))
+          (clrhash (devices space))))
+  (do-device-classes (device-class)
+    (unless (class-finalized-p device-class)
+      (finalize-inheritance device-class))
+    (for prototype = (class-prototype device-class))
+    (when (slot-exists-p prototype 'instances)
+      (setf (slot-value prototype 'instances) nil)))
   (clrhash *register-instances*)
   (clrhash *register-instances-by-id*))
 
