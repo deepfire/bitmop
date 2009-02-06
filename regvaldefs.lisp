@@ -206,8 +206,11 @@
   (apply #'shared-initialize o nil (remove-from-plist initargs :space)))
 
 (defun compute-inherited-layouts (direct-layout-instances eligible-parents)
-  (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layouts eligible-parents))) 
-                  direct-layout-instances))
+  (values (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layouts eligible-parents))) 
+                          direct-layout-instances)
+          (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layout-accessors eligible-parents)) :key #'car) 
+                          (mapcar (compose #'list #'name) direct-layout-instances)
+                          :key #'car)))
 
 (defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
   (if space
@@ -215,24 +218,25 @@
              (eligible-parents (remove-if-not (lambda (parent) (and (device-class-p parent) (device-class-space parent))) (class-direct-superclasses o))))
         (when-let ((misspaced (remove-if (curry #'eq space) (mapcar #'device-class-space eligible-parents))))
           (error "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>" (class-name o) (space-name space) (mapcar #'space-name misspaced)))
-        (let* ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) layouts))
-               (inherited-layout-instances (compute-inherited-layouts direct-layout-instances eligible-parents)))
-          (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) o
-            ;; fill in the basics, register self and fill in directly provided selector/reader/writer maps
-            (setf (values space-slot layouts-slot) (values space (append inherited-layout-instances direct-layout-instances))
-                  (values register-selectors readers-slot writers-slot) (build-device-class-maps space layouts)
-                  (device-class (class-name o)) o)
-            ;; compute and patch maps with selector/reader/writer values from inherited layouts
-            (dolist (inhayout inherited-layout-instances)
-              (let* ((providing-parent (find inhayout eligible-parents :key #'device-class-layouts :test #'member)))
-                (with-slots ((parent-register-selectors register-selectors) (parent-readers readers) (parent-writers writers)) providing-parent
-                  (iter (for layout-register in (layout-registers inhayout))
-                        (let ((register-id (register-id (name layout-register))))
-                          (setf (aref register-selectors register-id) (aref parent-register-selectors register-id)
-                                (aref readers-slot register-id) (aref parent-readers register-id)
-                                (aref writers-slot register-id) (aref parent-writers register-id))))))))))
+        (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) layouts)))
+          (multiple-value-bind (inherited-layout-instances inherited-layout-accessors) (compute-inherited-layouts direct-layout-instances eligible-parents)
+            (with-slots (register-selectors (space-slot space) (layouts-slot layouts) (readers-slot readers) (writers-slot writers)) o
+              ;; fill in the basics, register self and fill in directly provided selector/reader/writer maps
+              (setf (values space-slot layouts-slot) (values space (append inherited-layout-instances direct-layout-instances))
+                    (values register-selectors readers-slot writers-slot) (build-device-class-maps space layouts)
+                    (device-class-layout-accessors o) (append inherited-layout-accessors layouts)
+                    (device-class (class-name o)) o)
+              ;; compute and patch maps with selector/reader/writer values from inherited layouts
+              (dolist (inhayout inherited-layout-instances)
+                (let* ((providing-parent (find inhayout eligible-parents :key #'device-class-layouts :test #'member)))
+                  (with-slots ((parent-register-selectors register-selectors) (parent-readers readers) (parent-writers writers)) providing-parent
+                    (iter (for layout-register in (layout-registers inhayout))
+                          (let ((register-id (register-id (name layout-register))))
+                            (setf (aref register-selectors register-id) (aref parent-register-selectors register-id)
+                                  (aref readers-slot register-id) (aref parent-readers register-id)
+                                  (aref writers-slot register-id) (aref parent-writers register-id)))))))))))
       (if layouts
-          (error "~@<During initialization of device class ~S: layouts can not specified without space.~:@>" (class-name o))
+          (error "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" (class-name o))
           ;; Messing with initargs would be way too painful...
           (with-slots (space layouts layout-accessors) o (setf (values space layouts layout-accessors) (values nil nil nil))))))
 
