@@ -162,7 +162,7 @@
                                (extended-register-device-class 'extended-register-device)
                                ((device-class nil) 'device)))
          (metaclass-relevant-supers (remove-if-not (rcurry #'subtypep 'device) provided-superclasses))
-         (default-metaclass (if (find-if (of-type 'extended-register-device) metaclass-relevant-supers)
+         (default-metaclass (if (find-if (rcurry #'subtypep 'extended-register-device) metaclass-relevant-supers)
                                 'extended-register-device-class
                                 'device-class)) ;; note how this properly defaults to 'device-class when there's no M-R-S
          (metaclass (or provided-metaclass default-metaclass))
