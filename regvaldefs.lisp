@@ -136,6 +136,9 @@
    (layout-accessors :accessor device-class-layout-accessors :type list :initarg :layouts :documentation "Original layout->accessors alist."))
   (:default-initargs :instances nil))
 
+(defclass extended-register-device-class (device-class)
+  ((extensions :accessor device-class-extensions :type (vector vector) :documentation "ID-indexed storage for extended register information.")))
+
 (defun invalid-register-access-trap (&rest rest)
   (declare (ignore rest))
   (error "~@<Invalid register access.~:@>"))
@@ -150,16 +153,33 @@
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
 
-(defmacro define-device-class (name space superclasses slots &rest options)
-  `(defclass ,name ,(or superclasses '(device))
-     ,slots
-     (:metaclass ,(or (second (assoc :metaclass options)) 'device-class))
-     (:space . ,space)
-     ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first))) ;; YYY: REMOVE-FROM-ALIST
+(defun device-class-p (class &aux (type (class-name class)))
+  (and (subtypep type 'device) (not (member type '(device extended-register-device)))))
 
-(defmethod validate-superclass ((class device-class)
-                                (superclass standard-class))
-  "DEVICE-CLASS can be a subclass of STANDARD-CLASS."
+(defmacro define-device-class (name space provided-superclasses slots &rest options)
+  (let* ((provided-metaclass (second (assoc :metaclass options)))
+         (default-superclass (case provided-metaclass
+                               (extended-register-device-class 'extended-register-device)
+                               ((device-class nil) 'device)))
+         (metaclass-relevant-supers (remove-if-not (rcurry #'subtypep 'device) provided-superclasses))
+         (default-metaclass (if (find-if (of-type 'extended-register-device) metaclass-relevant-supers)
+                                'extended-register-device-class
+                                'device-class)) ;; note how this properly defaults to 'device-class when there's no M-R-S
+         (metaclass (or provided-metaclass default-metaclass))
+         (superclasses (if metaclass-relevant-supers
+                           provided-superclasses
+                           (append provided-superclasses (list default-superclass)))))
+    ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
+    `(defclass ,name ,superclasses
+       ,slots
+       (:metaclass ,metaclass)
+       (:space . ,space)
+       ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)))) ;; YYY: REMOVE-FROM-ALIST
+
+(defmethod validate-superclass ((class device-class) (superclass standard-class))
+  t)
+
+(defmethod validate-superclass ((class extended-register-device-class) (superclass device-class))
   t)
 
 (defclass device ()
@@ -176,8 +196,9 @@
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
     (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
 
-(defun device-class-p (class &aux (type (class-name class)))
-  (and (subtypep type 'device) (not (eq type 'device))))
+(defclass extended-register-device (device)
+  ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
+  (:metaclass extended-register-device-class))
 
 (defun build-device-class-maps (space layout-specs)
   (let* ((dictionary (register-dictionary space))
@@ -240,6 +261,31 @@
           ;; Messing with initargs would be way too painful...
           (with-slots (space layouts layout-accessors) o (setf (values space layouts layout-accessors) (values nil nil nil))))))
 
+(defun build-device-class-extension-map (space layouts)
+  (lret* ((dictionary (register-dictionary space))
+          (length (length (dictionary-id-map dictionary)))
+          (extension-map (make-array length :element-type 'vector :initial-element #())))
+    (dolist (layout layouts)
+      (iter (for register in (layout-registers layout))
+            (for register-id = (symbol-id dictionary (name register)))
+            (setf (aref extension-map register-id) (map 'vector #'identity (reg-ext register)))))))
+
+;;;
+;;; XXX: not pretty: hack around non-&allow-other-keys-able initargs...
+;;;
+(defmethod initialize-instance ((o extended-register-device-class) &rest initargs)
+  (apply #'shared-initialize o t (remove-from-plist initargs :extended-layouts)))
+(defmethod reinitialize-instance ((o extended-register-device-class) &rest initargs)
+  (apply #'shared-initialize o nil (remove-from-plist initargs :extended-layouts)))
+
+(defmethod initialize-instance :after ((o extended-register-device-class) &key extended-layouts &allow-other-keys)
+  (when (device-class-p o)
+    (when-let ((missing (remove-if (rcurry #'assoc (device-class-layout-accessors o)) extended-layouts)))
+      (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
+             (class-name o) missing))
+    ;; XXX: no inheritance for these maps...
+    (setf (device-class-extensions o) (build-device-class-extension-map (device-class-space o) extended-layouts))))
+
 (defun device-type (device)
   "Return the DEVICE's category, which is supposed to be a \"more
    general type\", independent of flavor variations.
@@ -286,6 +332,9 @@
           ;; register within space
           (gethash (device-hash-id device) (devices (device-class-space device-class))) device)
     (create-device-register-instances device)))
+
+(defmethod initialize-instance :after ((device extended-register-device) &key &allow-other-keys)
+  (setf (device-extensions device) (device-class-extensions (class-of device))))
 
 (defun space-device-count (space)
   (hash-table-count (devices space)))
