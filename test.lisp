@@ -57,7 +57,13 @@
    ((:moo "moo register layout")
     (:mooreg		0 :format :mooreg :doc "moo register 0"))
    ((:bar "bar register layout")
-    (:barreg		1 :format :barreg :doc "bar register 0"))))
+    (:barreg		1 :format :barreg :doc "bar register 0"))
+   ((:moobar-r "moobar r layout")
+    (:mbr0		0 :format :mooreg)
+    (:mbr1		1 :format :barreg))
+   ((:moobar-w "moobar w layout")
+    (:mbw0		0 :format :mooreg)
+    (:mbw1		1 :format :barreg))))
 
 (defun testreg (device selector)
   (declare (type test-device device))
@@ -70,7 +76,9 @@
 (define-device-class test-device :moobar (device)
   ((hash :accessor test-device-hash :initform (make-hash-table)))
   (:layouts (:moo testreg (setf testreg))
-            (:bar testreg (setf testreg))))
+            (:bar testreg (setf testreg))
+            (:moobar-r testreg nil)
+            (:moobar-w nil (setf testreg))))
 
 (set-namespace :foo :moobar)
 
@@ -147,6 +155,10 @@
 (deftest device-related reginstance-test (tdev)
   (setf (devreg tdev :barreg) #xfeed)
   (expect-value #xfeed (reginstance-value (register-instance :barreg))))
+
+(deftest device-related reginstance-cross-r/w-test (tdev)
+  (setf (reginstance-value (register-instance :mbw0)) #xfeed)
+  (expect-value #xfeed (reginstance-value (register-instance :mbr0))))
 
 ;; (deftest device-related device-runtime-queries-test (tdev)
 ;;   (let* ((unispace (space (space-name-context)))

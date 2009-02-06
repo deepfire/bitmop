@@ -200,6 +200,10 @@
   ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
   (:metaclass extended-register-device-class))
 
+(declaim (ftype (function ((or symbol (cons (member setf) (cons symbol null)))) function) compute-accessor-function))
+(defun compute-accessor-function (name)
+  (if name (fdefinition name) #'invalid-register-access-trap))
+
 (defun build-device-class-maps (space layout-specs)
   (let* ((dictionary (register-dictionary space))
          (length (length (dictionary-id-map dictionary)))
@@ -208,8 +212,8 @@
          (writer-map (make-array length :element-type 'function :initial-element #'invalid-register-access-trap)))
     (iter (for (layout-name reader-name writer-name) in layout-specs)
           (let ((layout (layout space layout-name))
-                (reader (if reader-name (fdefinition reader-name) #'invalid-register-access-trap))
-                (writer (if writer-name (fdefinition writer-name) #'invalid-register-access-trap)))
+                (reader (compute-accessor-function reader-name))
+                (writer (compute-accessor-function writer-name)))
             (iter (for register in (layout-registers layout))
                   (for register-id = (symbol-id dictionary (name register)))
                   (for selector in (layout-register-selectors layout))
@@ -315,7 +319,7 @@
             (let* ((name (name-to-reginstance-name (name register) layout device))
                    (id (1+ (hash-table-count *register-instances-by-id*)))
                    (instance (make-register-instance :name name :register register :device device :selector selector :id id
-                                                     :reader (fdefinition reader-name) :writer (fdefinition writer-name))))
+                                                     :reader (compute-accessor-function reader-name) :writer (compute-accessor-function writer-name))))
               (setf (register-instance-by-id id) instance)
               (iter (for riname in (cons name (mapcar (rcurry #'name-to-reginstance-name layout device)
                                                       (reg-aliases register))))
