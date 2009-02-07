@@ -25,7 +25,7 @@
    #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
    #:extended-register-device-class #:device-class-extensions
    ;; device classes
-   #:device #:id #:device-id #:device-register-selectors #:device-register-selector #:backend #:device-backend #:device-register #:instances
+   #:device #:id #:device-id #:device-selectors #:device-register-selector #:backend #:device-backend #:device-register #:instances
    #:device-type ;; this one is special: goes through category
    #:extended-register-device #:device-extensions
    ;; user API
