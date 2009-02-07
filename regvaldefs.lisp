@@ -149,7 +149,7 @@
    (writers :accessor device-class-writers :type (vector function) :documentation "ID-indexed register writer lookup table.")
    (space :accessor device-class-space :type (or space null))
    (layouts :accessor device-class-layouts :type list)
-   (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initarg :layouts :documentation "Original layout->accessors alist.")
+   (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initform nil :initarg :layouts :documentation "Original layout->accessors alist.")
    (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist.")))
 
 (defclass extended-register-device-class (device-class)
@@ -265,12 +265,12 @@
 
 (defun f-2 (l x) (declare (ignore l)) x)
 (defun mk-f-const-or-2 (x const) (if x (constantly const) #'f-2))
-(defmacro y (lambda-list expr)
+(defmacro y (lambda-list &body body)
   "Idiomatic, ignore-saving lambda macro."
   (iter (for var in lambda-list)
         (if var (collect var into binds)
             (let ((var (gensym))) (collect var into binds) (collect var into ignores)))
-        (finally (return `(lambda (,@binds) (declare (ignore ,@ignores)) ,expr)))))
+        (finally (return `(lambda (,@binds) (declare (ignore ,@ignores)) ,@body)))))
 (defun mk-f-1 (f) (y (l nil) (funcall f l)))
 (defun mk-f-cdrwalk (s &aux (r s)) (y (nil nil) (prog1 (car r) (setf r (cdr r)))))
 
@@ -346,7 +346,7 @@
           ;; Messing with initargs would be way too painful...
           (with-slots (space layouts direct-layout-specs effective-layout-specs selectors readers writers) device-class
             (setf (values space layouts direct-layout-specs effective-layout-specs selectors readers writers)
-                  (values nil nil nil (make-array 0 :element-type 'fixnum)
+                  (values nil nil nil nil (make-array 0 :element-type 'fixnum)
                           (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity)))))))
 
 (defun reinitialize-device-class (device-class &aux (device-class (xform-if #'symbolp #'find-class device-class)))
