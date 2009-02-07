@@ -149,7 +149,8 @@
    (writers :accessor device-class-writers :type (vector function) :documentation "ID-indexed register writer lookup table.")
    (space :accessor device-class-space :type (or space null))
    (layouts :accessor device-class-layouts :type list)
-   (layout-specs :accessor device-class-layout-specs :type list :initarg :layouts :documentation "Original layout->accessors alist.")))
+   (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initarg :layouts :documentation "Original layout->accessors alist.")
+   (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist.")))
 
 (defclass extended-register-device-class (device-class)
   ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
@@ -287,7 +288,6 @@
 (defun fuse-map (space layout-specs map fuser-maker &optional sequence)
   "Fuse MAP with FN according to LAYOUT-SPECS, interpreted in the context
    of SPACE."
-  (cl:format t "fusing: L:~S, P:~S~%" layout-specs sequence)
   (let* ((dictionary (register-dictionary space)))
     (iter (for (layout-name reader-name writer-name) in layout-specs)
           (for value = (pop sequence))
@@ -297,12 +297,12 @@
 (defun compute-inherited-layouts (direct-layout-instances eligible-parents)
   (values (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layouts eligible-parents))) 
                           direct-layout-instances)
-          (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layout-specs eligible-parents)) :key #'car) 
+          (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-effective-layout-specs eligible-parents)) :key #'car) 
                           (mapcar (compose #'list #'name) direct-layout-instances)
                           :key #'car)))
 
-(defun initialize-device-class (device-class space layout-specs)
-  "Initialize DEVICE-CLASS according to SPACE and LAYOUT-SPECS.
+(defun initialize-device-class (device-class space direct-layout-specs)
+  "Initialize DEVICE-CLASS according to SPACE and DIRECT-LAYOUT-SPECS.
 
    SPACE must be an instance of type SPACE.
    LAYOUT-SPECS is interpreted as a list of three-element sublists, each one
@@ -316,9 +316,9 @@
       - NIL, the pool is disabled, initialized to functions raising an error,
       - any other symbol, or setf function designator, serving as a name of
         a function used to initialize the pool."
-  (declare (device-class device-class) ((or null space) space) (list layout-specs))
+  (declare (device-class device-class) ((or null space) space) (list direct-layout-specs))
   (if space
-      (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) layout-specs))
+      (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs))
             (eligible-parents (remove-if-not (lambda (pc) (and (device-class-p pc) (device-class-space pc))) (class-direct-superclasses device-class))))
         (when-let ((misspaced (remove-if (curry #'eq space) (mapcar #'device-class-space eligible-parents))))
           (error "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>"
@@ -326,15 +326,14 @@
         (multiple-value-bind (inherited-layout-instances inherited-layout-specs) (compute-inherited-layouts direct-layout-instances eligible-parents)
           ;; fill in the basics and register self
           (setf (device-class-layouts device-class) (append inherited-layout-instances direct-layout-instances)
-                (device-class-layout-specs device-class) layout-specs
+                (device-class-effective-layout-specs device-class) (append inherited-layout-specs direct-layout-specs)
                 (device-class (class-name device-class)) device-class)
           ;; allocate storage
           (ensure-device-class-map-storage device-class (setf (device-class-space device-class) space))
           ;; compute and patch selector/reader/writer maps
           (with-slots (selectors readers writers) device-class
             (let ((providing-parents (mapcar (rcurry #'find eligible-parents :key #'device-class-layouts :test #'member) inherited-layout-instances)))
-              (cl:format t "l: ~S, ihl: ~S, ep: ~S~%" layout-specs inherited-layout-specs eligible-parents)
-              (mapc (curry #'apply #'fuse-map space layout-specs)
+              (mapc (curry #'apply #'fuse-map space direct-layout-specs)
                     `((,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
                       (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
                       (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w))))))
@@ -342,27 +341,27 @@
                     `((,selectors ,(y (nil nil nil p) (y (id nil) (aref (device-class-selectors p) id))) ,providing-parents)
                       (,readers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-readers p) id))) ,providing-parents)
                       (,writers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-writers p) id))) ,providing-parents)))))))
-      (if layout-specs
+      (if direct-layout-specs
           (error "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" (class-name device-class))
           ;; Messing with initargs would be way too painful...
-          (with-slots (space layouts layout-specs selectors readers writers) device-class
-            (setf (values space layouts layout-specs selectors readers writers)
+          (with-slots (space layouts direct-layout-specs effective-layout-specs selectors readers writers) device-class
+            (setf (values space layouts direct-layout-specs effective-layout-specs selectors readers writers)
                   (values nil nil nil (make-array 0 :element-type 'fixnum)
                           (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity)))))))
 
 (defun reinitialize-device-class (device-class &aux (device-class (xform-if #'symbolp #'find-class device-class)))
-  "Reinitialize DEVICE-CLASS according to its SPACE and LAYOUT-SPECS slots."
-  (initialize-device-class device-class (device-class-space device-class) (device-class-layout-specs device-class)))
+  "Reinitialize DEVICE-CLASS according to its SPACE and DIRECT-LAYOUT-SPECS slots."
+  (initialize-device-class device-class (device-class-space device-class) (device-class-direct-layout-specs device-class)))
 
-(defun maybe-reinitialize-device-class (device-class space-name layout-specs)
+(defun maybe-reinitialize-device-class (device-class space-name direct-layout-specs)
   "Reinitialize an already defined DEVICE-CLASS according to SPACE-NAME and 
-   LAYOUT-SPECS, if they differ from stored values."
+   DIRECT-LAYOUT-SPECS, if they differ from stored values."
   (unless (and (or (and (null space-name) (null (device-class-space device-class)))
                    (when-let ((space (device-class-space device-class)))
                      (eq (space-name space) space-name)))
-               (equal (device-class-layout-specs device-class) layout-specs))
-    (with-slots (space layout-specs) device-class
-      (setf (values space layout-specs) (values (space space-name) layout-specs)))
+               (equal (device-class-direct-layout-specs device-class) direct-layout-specs))
+    (with-slots (space (direct-layout-specs-slot direct-layout-specs)) device-class
+      (setf (values space direct-layout-specs-slot) (values (space space-name) direct-layout-specs)))
     (reinitialize-device-class device-class)))
 
 ;;;
@@ -402,7 +401,7 @@
 
 (defmethod initialize-instance :after ((o extended-register-device-class) &key extended-layouts &allow-other-keys)
   (when (device-class-p o)
-    (when-let ((missing (remove-if (rcurry #'assoc (device-class-layout-specs o)) extended-layouts)))
+    (when-let ((missing (remove-if (rcurry #'assoc (device-class-effective-layout-specs o)) extended-layouts)))
       (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
              (class-name o) missing))
     ;; XXX: no inheritance for these maps... complicated composition. Not unsurmountable, though.
@@ -428,7 +427,7 @@
   (labels ((name-to-reginstance-name (name layout device)
 	     (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
     (iter (for layout in (device-class-layouts device-class))
-          (for (nil reader-name writer-name) in (device-class-layout-specs device-class))
+          (for (nil reader-name writer-name) in (device-class-effective-layout-specs device-class))
           (iter (for register in (layout-registers layout))
                 (for selector in (layout-register-selectors layout))
                 (let* ((name (name-to-reginstance-name (name register) layout device))
