@@ -21,12 +21,14 @@
    #:test-devbits #:test-bits #:format-decode
    #:byteval
    ;; device metaclasses
-   #:device-class #:device-class-p #:define-device-class #:define-device-subclass #:device-class-space #:reinitialize-device-class
+   #:device-class #:device-class-p #:define-device-class #:define-device-subclass #:device-class-space #:device-class-instances #:reinitialize-device-class
    #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
    #:extended-register-device-class #:device-class-extensions
+   #:struct-device-class #:define-struct-device-class
    ;; device classes
-   #:device #:id #:device-id #:device-selectors #:device-register-selector #:backend #:device-backend #:device-register #:instances
+   #:device #:id #:device-id #:class-of-device #:device-selectors #:device-register-selector #:backend #:device-backend #:device-register #:instances
    #:device-type ;; this one is special: goes through category
    #:extended-register-device #:device-extensions
+   #:struct-device #:make-struct-device-instance
    ;; user API
    #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value))

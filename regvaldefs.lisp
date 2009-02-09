@@ -108,8 +108,10 @@
 (defvar *register-instances* (make-hash-table :test #'eq))
 (defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
+(deftype device-class-umbrella () `(or device-class struct-device-class))
+
 (define-container-hash-accessor *spaces* space :if-exists :continue)
-(define-container-hash-accessor *device-classes* device-class :iterator do-device-classes)
+(define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :iterator do-device-classes)
 (define-container-hash-accessor *register-formats* format :type format)
 (define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error)
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
@@ -143,6 +145,22 @@
          (layout (layout space layout-name)))
     (nth (position register-name (layout-registers layout) :key #'name) (layout-register-selectors layout))))
 
+(defparameter *dummy-fixnum-vector* (make-array 0 :element-type 'fixnum))
+(defparameter *dummy-function-vector* (make-array 0 :element-type 'function))
+(defparameter *dummy-space* (make-instance 'space :name :dummy :documentation "Dummy space."))
+
+(defstruct (struct-device-class (:include docunamed))
+  (selectors *dummy-fixnum-vector* :type (vector fixnum))
+  (readers *dummy-function-vector* :type (vector function))
+  (writers *dummy-function-vector* :type (vector function))
+  (space *dummy-space* :type space)
+  (instances nil :type list)
+  (layouts nil :type list)
+  (effective-layout-specs nil :type list)
+  (constructor nil :type (function (*) struct-device-class)))
+
+(defparameter *dummy-struct-device-class* (make-struct-device-class :constructor #'make-struct-device-class))
+
 (defclass device-class (standard-class)
   ((selectors :accessor device-class-selectors :type (vector fixnum) :documentation "ID-indexed register selector lookup table.")
    (readers :accessor device-class-readers :type (vector function) :documentation "ID-indexed register reader lookup table.")
@@ -151,6 +169,17 @@
    (layouts :accessor device-class-layouts :type list)
    (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initform nil :initarg :layouts :documentation "Original layout->accessors alist.")
    (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist.")))
+
+(defmethod device-class-instances ((o struct-device-class))
+  (struct-device-class-instances o))
+
+;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
+(defmethod device-class-layouts ((o struct-device-class))
+  (struct-device-class-layouts o))
+
+;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
+(defmethod device-class-effective-layout-specs ((o struct-device-class))
+  (struct-device-class-effective-layout-specs o))
 
 (defclass extended-register-device-class (device-class)
   ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
@@ -222,6 +251,20 @@
 
 (defmethod validate-superclass ((class extended-register-device-class) (superclass device-class)) t)
 
+(defmacro define-struct-device-class (name space slots &rest options)
+  `(progn
+     (defstruct (,name (:include struct-device))
+       (,@slots))
+     (initialize-struct-device-class (make-struct-device-class :name ,name ,@(when-let ((documentation (second (assoc :documentation options))))
+                                                                               `(:documentation ,documentation))
+                                                               :constructor (function ,(format-symbol (symbol-package name) "MAKE-~A" name)))
+                                     (space ,space) ',(rest (assoc :layouts options)))))
+
+(defstruct struct-device
+  (class *dummy-struct-device-class* :type struct-device-class)
+  (id 0 :type fixnum)
+  (backend nil :type (or null struct-device)))
+
 (defclass device ()
   ((selectors :accessor device-selectors :type (vector fixnum) :allocation :class) ; copied over from class
    (readers :accessor device-readers :type (vector function) :allocation :class)                     ; ...
@@ -231,6 +274,18 @@
    (category :initarg :category) ;; this might go away
    )
   (:metaclass device-class))
+
+(defgeneric class-of-device (device)
+  (:documentation "Return the DEVICE's metaclass, or device class structure,
+                   depending on its type.")
+  (:method ((o struct-device)) (struct-device-class o))
+  (:method ((o device)) (class-of o)))
+
+(defmethod device-id ((o struct-device))
+  (struct-device-id o))
+
+(defmethod instances ((o struct-device))
+  (struct-device-class-instances (struct-device-class o)))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
@@ -245,9 +300,22 @@
   (declare (device device) (fixnum id))
   (aref (device-selectors device) id))
 
+(defgeneric class-reallocation-effective-requirement (class new-requirement slot)
+  (:documentation "Determine, with regards to CLASS's map SLOT, 
+                   whether CLASS needs a new pool, an extended pool,
+                   or that its current pool allocation is enough to meet
+                   NEW-REQUIREMENT for SLOT.")
+  (:method ((o struct-device-class) required-length slot-name)
+    (cond ((member (slot-value o slot-name) (list *dummy-fixnum-vector* *dummy-function-vector*)) :new)
+          ((> required-length (length (slot-value o slot-name))) :extend)))
+  (:method ((o device-class) required-length slot-name)
+    (cond ((not (slot-boundp o slot-name)) :new)
+          ((> required-length (length (slot-value o slot-name))) :extend))))
+
 (defun ensure-device-class-map-storage (device-class space)
   "Ensure that map storage of DEVICE-CLASS is enough to cover all registers 
    in SPACE."
+  (declare (type (or struct-device-class device-class) device-class))
   (let ((required-length (length (dictionary-id-map (register-dictionary space)))))
     (flet ((new-pool (type initial-element)
              (make-array required-length :element-type type :initial-element initial-element))
@@ -257,11 +325,11 @@
       (iter (for (slot-name type initial) in `((selectors fixnum 0)
                                                (readers function ,#'invalid-register-access-trap)
                                                (writers function ,#'invalid-register-access-trap)))
-            (let* ((new-p (not (slot-boundp device-class slot-name)))
-                   (extend-p (and (not new-p) (> required-length (length (slot-value device-class slot-name))))))
-              (setf (slot-value device-class slot-name) (cond (new-p (new-pool type initial))
-                                                              (extend-p (extend-pool (slot-value device-class slot-name) initial))
-                                                              (t (slot-value device-class slot-name)))))))))
+            (setf (slot-value device-class slot-name)
+                  (case (class-reallocation-effective-requirement device-class required-length slot-name)
+                    (:new (new-pool type initial))
+                    (:extend (extend-pool (slot-value device-class slot-name) initial))
+                    (t (slot-value device-class slot-name))))))))
 
 (defun f-2 (l x) (declare (ignore l)) x)
 (defun mk-f-const-or-2 (x const) (if x (constantly const) #'f-2))
@@ -301,14 +369,43 @@
                           (mapcar (compose #'list #'name) direct-layout-instances)
                           :key #'car)))
 
+(defun initialize-struct-device-class (struct-device-class space direct-layout-specs)
+  "Initialize STRUCT-DEVICE-CLASS according to SPACE and DIRECT-LAYOUT-SPECS.
+
+   SPACE must be an instance of type SPACE.
+   LAYOUT-SPECS is interpreted as a list of three-element sublists, each one
+   containing a layout name and two accessor specifications, for both the
+   reader and writer to be used for accessing that layout with instances made
+   using STRUCT-DEVICE-CLASS.
+
+   Accessor specifications bear one of possible following meanings, 
+   with regard to corresponding accessor pools:
+      - T, the pool is manually managed,
+      - NIL, the pool is disabled, initialized to functions raising an error,
+      - any other symbol, or setf function designator, serving as a name of
+        a function used to initialize the pool."
+  (declare (struct-device-class struct-device-class) (space space) (list direct-layout-specs))
+  (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs)))
+    (setf (struct-device-class-layouts struct-device-class) direct-layout-instances
+          (struct-device-class-effective-layout-specs struct-device-class) direct-layout-specs
+          (device-class (struct-device-class-name struct-device-class)) struct-device-class)
+    ;; allocate storage
+    (ensure-device-class-map-storage struct-device-class (setf (struct-device-class-space struct-device-class) space))
+    ;; compute and patch selector/reader/writer maps
+    (with-slots (selectors readers writers) struct-device-class
+      (mapc (curry #'apply #'fuse-map space direct-layout-specs)
+            `((,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
+              (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
+              (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w)))))))))
+
 (defun initialize-device-class (device-class space direct-layout-specs)
   "Initialize DEVICE-CLASS according to SPACE and DIRECT-LAYOUT-SPECS.
 
    SPACE must be an instance of type SPACE.
    LAYOUT-SPECS is interpreted as a list of three-element sublists, each one
    containing a layout name and two accessor specifications, for both the
-   reader and writer to be used for accessing that layout with instances of
-   DEVICE-CLASS.
+   reader and writer to be used for accessing that layout with instances made
+   using DEVICE-CLASS.
 
    Accessor specifications bear one of possible following meanings, 
    with regard to corresponding accessor pools:
@@ -422,7 +519,7 @@
 (defun device-hash-id (device)
   (list (device-type device) (device-id device)))
 
-(defun create-device-register-instances (device &aux (device-class (class-of device)))
+(defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
   (labels ((name-to-reginstance-name (name layout device)
 	     (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
@@ -445,6 +542,13 @@
     (cl:format *log-stream* "~S " (type-of device))
     (finish-output *log-stream*))
   (call-next-method))
+
+(defun make-struct-device-instance (type &rest initargs)
+  (lret* ((class (device-class type))
+          (instance (apply (struct-device-class-constructor class) :id (1- (length (struct-device-class-instances class))) initargs)))
+    (push instance (struct-device-class-instances class))
+    (setf (gethash (device-hash-id device) (devices space)) instance)
+    (create-device-register-instances instance)))
 
 (defmethod initialize-instance :after ((device device) &key &allow-other-keys)
   (let* ((device-class (class-of device))
