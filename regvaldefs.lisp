@@ -536,9 +536,10 @@
 
 (defun make-struct-device-instance (type &rest initargs)
   (lret* ((class (device-class type))
+	  (space (struct-device-class-space class))
           (instance (apply (struct-device-class-constructor class) :id (1- (length (struct-device-class-instances class))) initargs)))
     (push instance (struct-device-class-instances class))
-    (setf (gethash (device-hash-id device) (devices space)) instance)
+    (setf (gethash (device-hash-id instance) (devices space)) instance)
     (create-device-register-instances instance)))
 
 (defmethod initialize-instance :after ((device device) &key &allow-other-keys)
