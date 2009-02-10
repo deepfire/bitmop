@@ -375,7 +375,7 @@
       - NIL, the pool is disabled, initialized to functions raising an error,
       - any other symbol, or setf function designator, serving as a name of
         a function used to initialize the pool."
-  (declare (struct-device-class struct-device-class) (space space) (list direct-layout-specs))
+  (declare (type struct-device-class struct-device-class) (type space space) (type list direct-layout-specs))
   (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs)))
     (setf (struct-device-class-layouts struct-device-class) direct-layout-instances
           (struct-device-class-effective-layout-specs struct-device-class) direct-layout-specs
@@ -404,7 +404,7 @@
       - NIL, the pool is disabled, initialized to functions raising an error,
       - any other symbol, or setf function designator, serving as a name of
         a function used to initialize the pool."
-  (declare (type device-class device-class) ((or null space) space) (list direct-layout-specs))
+  (declare (type device-class device-class) (type (or null space) space) (type list direct-layout-specs))
   (if space
       (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs))
             (eligible-parents (remove-if-not (lambda (pc) (and (device-class-p pc) (device-class-space pc))) (class-direct-superclasses device-class))))
