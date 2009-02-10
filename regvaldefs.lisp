@@ -656,7 +656,7 @@
 ;;;;      ... survey
 ;;;
 (defmacro define-namespace (name &body f)
-  `(eval-when (:compile-toplevel :load-toplevel)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
      ,(once-only (name)
         `(setf (space ,name) (make-instance 'space :name ,name :documentation ,(cadr (assoc :documentation f)))))
      (symbol-macrolet ((*space* ,name))
