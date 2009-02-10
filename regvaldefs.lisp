@@ -413,7 +413,7 @@
       - NIL, the pool is disabled, initialized to functions raising an error,
       - any other symbol, or setf function designator, serving as a name of
         a function used to initialize the pool."
-  (declare (device-class device-class) ((or null space) space) (list direct-layout-specs))
+  (declare (type device-class device-class) ((or null space) space) (list direct-layout-specs))
   (if space
       (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs))
             (eligible-parents (remove-if-not (lambda (pc) (and (device-class-p pc) (device-class-space pc))) (class-direct-superclasses device-class))))
