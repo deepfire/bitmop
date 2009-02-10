@@ -170,16 +170,10 @@
    (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initform nil :initarg :layouts :documentation "Original layout->accessors alist.")
    (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist.")))
 
-(defmethod device-class-instances ((o struct-device-class))
-  (struct-device-class-instances o))
-
-;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
-(defmethod device-class-layouts ((o struct-device-class))
-  (struct-device-class-layouts o))
-
-;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
-(defmethod device-class-effective-layout-specs ((o struct-device-class))
-  (struct-device-class-effective-layout-specs o))
+(defmethod device-class-space ((o struct-device-class)) (struct-device-class-space o))
+(defmethod device-class-instances ((o struct-device-class)) (struct-device-class-instances o))
+(defmethod device-class-layouts ((o struct-device-class)) (struct-device-class-layouts o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
+(defmethod device-class-effective-layout-specs ((o struct-device-class)) (struct-device-class-effective-layout-specs o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
 
 (defclass extended-register-device-class (device-class)
   ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
@@ -281,11 +275,8 @@
   (:method ((o struct-device)) (struct-device-class o))
   (:method ((o device)) (class-of o)))
 
-(defmethod device-id ((o struct-device))
-  (struct-device-id o))
-
-(defmethod instances ((o struct-device))
-  (struct-device-class-instances (struct-device-class o)))
+(defmethod device-id ((o struct-device)) (struct-device-id o))
+(defmethod instances ((o struct-device)) (struct-device-class-instances (struct-device-class o)))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
