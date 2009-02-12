@@ -442,13 +442,16 @@
   "Reinitialize DEVICE-CLASS according to its SPACE and DIRECT-LAYOUT-SPECS slots."
   (initialize-device-class device-class (device-class-space device-class) (device-class-direct-layout-specs device-class)))
 
+(defun device-class-corresponds-to-space-and-layouts-p (device-class space-name layout-specs)
+  (when-let ((present-space (device-class-space device-class)))
+    (and (eq present-space (space space-name))
+         (equal (device-class-direct-layout-specs device-class) layout-specs)
+         (every #'eq (device-class-layouts device-class) (mapcar (curry #'layout present-space) (mapcar #'car layout-specs))))))
+
 (defun maybe-reinitialize-device-class (device-class space-name direct-layout-specs)
   "Reinitialize an already defined DEVICE-CLASS according to SPACE-NAME and 
    DIRECT-LAYOUT-SPECS, if they differ from stored values."
-  (unless (and (or (and (null space-name) (null (device-class-space device-class)))
-                   (when-let ((space (device-class-space device-class)))
-                     (eq (space-name space) space-name)))
-               (equal (device-class-direct-layout-specs device-class) direct-layout-specs))
+  (unless (device-class-corresponds-to-space-and-layouts-p device-class space-name direct-layout-specs)
     (with-slots (space (direct-layout-specs-slot direct-layout-specs)) device-class
       (setf (values space direct-layout-specs-slot) (values (space space-name) direct-layout-specs)))
     (reinitialize-device-class device-class)))
