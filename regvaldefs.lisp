@@ -278,9 +278,12 @@
 (defmethod instances ((o struct-device)) (struct-device-class-instances (struct-device-class o)))
 (defgeneric (setf instances) (value device))
 
-(defmethod print-object ((device device) stream)
+(defun print-device-object (device stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
-    (cl:format stream "~@<#<~;~A-~A backend: ~S~;>~:@>" (type-of device) (slot 'id) (slot 'backend))))
+    (cl:format stream "~@<#<~;~A-~A~;>~:@>" (type-of device) (slot 'id))))
+
+(defmethod print-object ((device device) stream)
+  (print-device-object device stream))
 
 (defclass extended-register-device (device)
   ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
