@@ -277,6 +277,7 @@
 
 (defmethod device-id ((o struct-device)) (struct-device-id o))
 (defmethod instances ((o struct-device)) (struct-device-class-instances (struct-device-class o)))
+(defgeneric (setf instances) (value device))
 
 (defmethod print-object ((device device) stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
