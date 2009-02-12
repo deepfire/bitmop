@@ -650,8 +650,9 @@
           (layout-registers layout) (iter (for (name selector . rest) in register-specs)
                                           (collect (apply #'define-register layout name rest))))))
 
-(defmacro define-layout (&environment env (name doc &key name-format) &rest defs)
-  `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ,name-format ',defs))
+(defmacro define-layout (&environment env (name doc &key multi-p name-format) &rest defs)
+  (let ((reginstance-name-format (or name-format (when multi-p "~A~D"))))
+    `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ,reginstance-name-format ',defs)))
 
 ;;;
 ;;;  o  layout templates
