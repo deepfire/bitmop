@@ -232,8 +232,7 @@
          (:metaclass ,metaclass)
          (:space . ,space)
          ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)) ;; YYY: REMOVE-FROM-ALIST
-       (eval-when (:load-toplevel :execute)
-         (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options)))))))
+       (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options))))))
 
 (defmacro define-device-class (name space provided-superclasses slots &rest options)
   `(define-device-subclass ,name ,space (,@provided-superclasses)
@@ -444,7 +443,7 @@
 
 (defun device-class-corresponds-to-space-and-layouts-p (device-class space-name layout-specs)
   (when-let ((present-space (device-class-space device-class)))
-    (and (eq present-space (space space-name))
+    (and (eq present-space (when space-name (space space-name)))
          (equal (device-class-direct-layout-specs device-class) layout-specs)
          (every #'eq (device-class-layouts device-class) (mapcar (curry #'layout present-space) (mapcar #'car layout-specs))))))
 
@@ -453,7 +452,7 @@
    DIRECT-LAYOUT-SPECS, if they differ from stored values."
   (unless (device-class-corresponds-to-space-and-layouts-p device-class space-name direct-layout-specs)
     (with-slots (space (direct-layout-specs-slot direct-layout-specs)) device-class
-      (setf (values space direct-layout-specs-slot) (values (space space-name) direct-layout-specs)))
+      (setf (values space direct-layout-specs-slot) (values (when space-name (space space-name)) direct-layout-specs)))
     (reinitialize-device-class device-class)))
 
 ;;;
