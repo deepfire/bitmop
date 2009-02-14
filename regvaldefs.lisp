@@ -113,7 +113,7 @@
 (define-container-hash-accessor *spaces* space :if-exists :continue)
 (define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :iterator do-device-classes)
 (define-container-hash-accessor *register-formats* format :type format)
-(define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error)
+(define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error :description "register")
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
 (define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
