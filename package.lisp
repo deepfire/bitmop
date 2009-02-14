@@ -31,5 +31,8 @@
    #:device-type ;; this one is special: goes through category
    #:extended-register-device #:device-extensions
    #:struct-device #:make-struct-device-instance
+   #:device-reader #:device-writer #:set-device-reader #:set-device-writer
    ;; user API
-   #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value))
+   #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
+   ;; sugar.lisp
+   #:with-device-bits-toggled))

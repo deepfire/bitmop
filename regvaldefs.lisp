@@ -278,6 +278,13 @@
 (defmethod instances ((o struct-device)) (struct-device-class-instances (struct-device-class o)))
 (defgeneric (setf instances) (value device))
 
+(defmethod device-reader ((device device) register-id) (aref (device-readers device) register-id))
+(defmethod device-writer ((device device) register-id) (aref (device-writers device) register-id))
+(defmethod set-device-reader ((device device) register-id value) (setf (aref (device-readers device) register-id) value))
+(defmethod set-device-writer ((device device) register-id value) (setf (aref (device-writers device) register-id) value))
+(defsetf device-reader set-device-reader)
+(defsetf device-writer set-device-writer)
+
 (defun print-device-object (device stream)
   (labels ((slot (id) (if (slot-boundp device id) (slot-value device id) :unbound-slot)))
     (cl:format stream "~@<#<~;~A-~A~;>~:@>" (type-of device) (slot 'id))))
