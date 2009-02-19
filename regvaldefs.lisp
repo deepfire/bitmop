@@ -559,7 +559,7 @@
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
     (unless space
-      (error "~@<During device initialization: type ~S claims no space.~:@>" (type-of device)))
+      (error "~@<Device type ~S is not directly instantiable: it claims no space.~:@>" (type-of device)))
     (push device (instances device))
     (setf (device-id device) (1- (length (instances device)))
           (device-selectors device) (device-class-selectors device-class)
