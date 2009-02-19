@@ -84,53 +84,53 @@
 
 (defparameter tdev (make-instance 'test-device))
 
-(deftest pure-evaluation base-bit-expression-test (foo)
+(deftest pure-evaluation base-bit-expression-test () (foo)
   (declare (ignore foo))
   (and (expect-value #b101 (bits (:b0 :b2)))
        (expect-value #b101 (bits (:b0 :b2) (plusp 1) (minusp -1)))))
 
-(deftest pure-evaluation literal-singlet-expression-test (foo)
+(deftest pure-evaluation literal-singlet-expression-test () (foo)
   (declare (ignore foo))
   (and (expect-value #b1110 (bits (:bc) #b111))
        (expect-value #b1110 (bits (:b1 :b2 :b3)))))
 
-(deftest pure-evaluation literal-compound-expression-test (foo)
+(deftest pure-evaluation literal-compound-expression-test () (foo)
   (declare (ignore foo))
   (and (expect-value #b1100 (bits (:b2 :b3)))
        (expect-value #b1100 (bits (:bc) :noo))))
 
-(deftest device-related register-bit-io-test (tdev)
+(deftest device-related register-bit-io-test () (tdev)
   (setc (devreg tdev :mooreg) 0
         (devbit tdev :mooreg :m0 :write-only t) t)
   (expect-success (and (devbit tdev :mooreg :m0)
                        (not (devbit tdev :mooreg :m1)))))
 
-(deftest device-related compound-numeric-bitvalue-plus-devbit-value-test (tdev)
+(deftest device-related compound-numeric-bitvalue-plus-devbit-value-test () (tdev)
   (setc (devreg tdev :barreg) 0
         (devbit tdev :barreg :bc) #b110)
   (expect-value (ash (bits (:bc) :noo) -1) (devbit-value tdev :barreg :bc)))
 
-(deftest device-related compound-named-bitvalue-test (tdev)
+(deftest device-related compound-named-bitvalue-test () (tdev)
   (setc (devreg tdev :barreg) 0
         (devbit tdev :barreg :bc) :noo)
   (and (expect-success (not (or (devbit tdev :barreg :b0) (devbit tdev :barreg :b4))))
        (expect-success (and (devbit tdev :barreg :b3) (devbit tdev :barreg :b2) (not (devbit tdev :barreg :b1))))))
 
-(deftest device-related spread-immediate-evaluation-test (tdev)
+(deftest device-related spread-immediate-evaluation-test () (tdev)
   (setc (devreg tdev :mooreg) 0
         (devbits tdev :mooreg (:m0 :m1 :m2)) (t nil nil))
   (expect-value '(t nil nil)
                 (multiple-value-list (devbits tdev :mooreg (:m0 :m1 :m2)))
                 :test 'equal))
 
-(deftest device-related spread-delayed-evaluation-test (tdev)
+(deftest device-related spread-delayed-evaluation-test () (tdev)
   (setc (devreg tdev :mooreg) 0
         (devbits tdev :mooreg (:m0 :m1 :m2)) (#b1 (plusp 0) nil))
   (expect-value '(t nil nil)
                 (multiple-value-list (devbits tdev :mooreg (:m0 :m1 :m2)))
                 :test 'equal))
 
-(deftest device-related compound-value-compositing-test (tdev)
+(deftest device-related compound-value-compositing-test () (tdev)
   (setc (devreg tdev :barreg) 0
         (devbits tdev :barreg (:b4 :b0)) (nil nil)
         (devbits tdev :barreg (:bc)) (:noo))
@@ -138,7 +138,7 @@
                 (multiple-value-list (devbits tdev :barreg (:b4 :b3 :b2 :b1 :b0)))
                 :test 'equal))
 
-(deftest device-related multiple-compound-mixed-evaluation-test (tdev)
+(deftest device-related multiple-compound-mixed-evaluation-test () (tdev)
   (let ((supervar :eoo))
     (setc (devreg tdev :barreg) 0
           (devbits tdev :barreg (:bc)) (supervar))
@@ -146,17 +146,17 @@
                   (multiple-value-list (devbits tdev :barreg (:b4 :b3 :b2 :b1 :b0)))
                   :test 'equal)))
 
-(deftest device-related compound-value-test (tdev)
+(deftest device-related compound-value-test () (tdev)
   (let ((supervar :eoo))
     (setc (devreg tdev :barreg) 0
           (devbits tdev :barreg (:bc)) (supervar))
     (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
-(deftest device-related reginstance-test (tdev)
+(deftest device-related reginstance-test () (tdev)
   (setf (devreg tdev :barreg) #xfeed)
   (expect-value #xfeed (reginstance-value (register-instance :barreg))))
 
-(deftest device-related reginstance-cross-r/w-test (tdev)
+(deftest device-related reginstance-cross-r/w-test () (tdev)
   (setf (reginstance-value (register-instance :mbw0)) #xfeed)
   (expect-value #xfeed (reginstance-value (register-instance :mbr0))))
 
