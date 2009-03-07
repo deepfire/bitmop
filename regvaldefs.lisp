@@ -431,14 +431,13 @@
           ;; compute and patch selector/reader/writer maps
           (with-slots (selectors readers writers) device-class
             (let ((providing-parents (mapcar (rcurry #'find eligible-parents :key #'device-class-layouts :test #'member) inherited-layout-instances)))
-              (mapc (curry #'apply #'fuse-map space direct-layout-specs)
-                    `((,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
-                      (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
-                      (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w))))))
-              (mapc (curry #'apply #'fuse-map space inherited-layout-specs) 
-                    `((,selectors ,(y (nil nil nil p) (y (id nil) (aref (device-class-selectors p) id))) ,providing-parents)
-                      (,readers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-readers p) id))) ,providing-parents)
-                      (,writers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-writers p) id))) ,providing-parents)))))))
+              (mapc (curry #'apply #'fuse-map space)
+                    `((,direct-layout-specs    ,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
+                      (,direct-layout-specs    ,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
+                      (,direct-layout-specs    ,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w))))
+                      (,inherited-layout-specs ,selectors ,(y (nil nil nil p) (y (id nil) (aref (device-class-selectors p) id))) ,providing-parents)
+                      (,inherited-layout-specs ,readers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-readers p) id))) ,providing-parents)
+                      (,inherited-layout-specs ,writers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-writers p) id))) ,providing-parents)))))))
       (if direct-layout-specs
           (error "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" (class-name device-class))
           ;; Messing with initargs would be way too painful...
