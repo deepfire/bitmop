@@ -343,25 +343,25 @@
 (defun mk-f-1 (f) (y (l nil) (funcall f l)))
 (defun mk-f-cdrwalk (s &aux (r s)) (y (nil nil) (prog1 (car r) (setf r (cdr r)))))
 
-(defun fuse-map*layout (dictionary layout map fn)
-  "Fuse a LAYOUT-specified subset of MAP using FN, with LAYOUT interpreted
-   in the context of DICTIONARY."
-  (declare (dictionary dictionary) (simple-array map) (layout layout))
+(defun mapc-layout-register-ids (fn layout &aux (dictionary (register-dictionary (layout-space layout))))
   (iter (for register in (layout-registers layout))
-        (let ((id (symbol-id dictionary (name register))))
-          (setf (aref map id) (funcall fn id (aref map id))))))
+        (funcall fn (symbol-id dictionary (name register)))))
 
 (defun compute-accessor-function (name)
   (if (and (not (eq name t)) name) (fdefinition name) #'invalid-register-access-trap))
 
-(defun fuse-map (space layout-specs map fuser-maker &optional sequence)
-  "Fuse MAP with FN according to LAYOUT-SPECS, interpreted in the context
-   of SPACE."
-  (let* ((dictionary (register-dictionary space)))
-    (iter (for (layout-name reader-name writer-name) in layout-specs)
-          (for value = (pop sequence))
-          (let ((layout (layout space layout-name)))
-            (fuse-map*layout dictionary layout map (funcall fuser-maker layout reader-name writer-name value))))))
+(defun map-add-layout-specs (space layout-specs map fn-maker &optional values)
+  "Replace MAP entry sets corresponding to successive layout register id sets
+   referenced by LAYOUT-SPECS, with result of application of the function
+   made by FN-MAKER, accordingly with the per-layout information provided in
+   LAYOUT-SPECS and a corresponding member of VALUES, if any.
+
+   The replacement value is computed by application of the per-layout made function
+   to the corresponding register id and the old value."
+  (iter (for (name reader writer) in layout-specs)
+        (let* ((layout (layout space name))
+               (fn (funcall fn-maker layout reader writer (pop values))))
+          (mapc-layout-register-ids (lambda (id) (setf (aref map id) (funcall fn id (aref map id)))) layout))))
 
 (defun compute-inherited-layouts (direct-layout-instances eligible-parents)
   (values (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layouts eligible-parents))) 
@@ -394,7 +394,7 @@
     (ensure-device-class-map-storage struct-device-class (setf (struct-device-class-space struct-device-class) space))
     ;; compute and patch selector/reader/writer maps
     (with-slots (selectors readers writers) struct-device-class
-      (mapc (curry #'apply #'fuse-map space direct-layout-specs)
+      (mapc (curry #'apply #'map-add-layout-specs space direct-layout-specs)
             `((,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
               (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
               (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w)))))))))
@@ -431,7 +431,7 @@
           ;; compute and patch selector/reader/writer maps
           (with-slots (selectors readers writers) device-class
             (let ((providing-parents (mapcar (rcurry #'find eligible-parents :key #'device-class-layouts :test #'member) inherited-layout-instances)))
-              (mapc (curry #'apply #'fuse-map space)
+              (mapc (curry #'apply #'map-add-layout-specs space)
                     `((,direct-layout-specs    ,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
                       (,direct-layout-specs    ,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
                       (,direct-layout-specs    ,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w))))
