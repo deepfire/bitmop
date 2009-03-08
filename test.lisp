@@ -82,8 +82,6 @@
 
 (set-namespace :foo :moobar)
 
-(defparameter tdev (make-instance 'test-device))
-
 (deftest pure-evaluation base-bit-expression-test () (foo)
   (declare (ignore foo))
   (and (expect-value #b101 (bits (:b0 :b2)))
@@ -171,11 +169,12 @@
 
 (defun run-tests (&rest test-suites)
   "Run a set of test suites. Defaults to PURE-EVALUATION and DEVICE-RELATED."
-  (let ((test-suites (or test-suites '(pure-evaluation device-related))))
+  (let ((test-suites (or test-suites '(pure-evaluation device-related)))
+        (device (make-instance 'test-device)))
     (with-condition-printing (t custom-harness:test-error)
       (lret ((success t))
         (dolist (suite test-suites)
           (andf success (run-test-suite (ecase suite
                                           (pure-evaluation nil)
-                                          (device-related tdev))
+                                          (device-related device))
                                         suite)))))))
