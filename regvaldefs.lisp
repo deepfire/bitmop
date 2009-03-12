@@ -657,7 +657,7 @@
     (error "~@<While defining layout ~S: register selectors must be of type FIXNUM.~:@>" name))
   (lret ((layout (make-layout :name name :space space :documentation documentation
                               :register-selectors selectors :name-format name-format)))
-    (setf (gethash name (layouts space)) layout
+    (setf (layout space name) layout
           (layout-registers layout) (iter (for (name selector . rest) in register-specs)
                                           (collect (apply #'define-register layout name rest))))))
 
