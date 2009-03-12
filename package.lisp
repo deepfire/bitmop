@@ -19,7 +19,7 @@
    ;; bitfield, format, byteval
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode
    #:test-devbits #:test-bits #:format-decode
-   #:byteval
+   #:byteval #:byterevval
    ;; device metaclasses
    #:device-class #:device-class-p #:define-device-class #:define-device-subclass #:device-class-space #:device-class-instances #:reinitialize-device-class
    #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer

@@ -117,10 +117,11 @@
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
 (define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
-(define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t)
+(define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t :if-exists :error)
 (define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t :if-exists :error)
-(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :type cons)
-(define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t)
+(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :if-exists :error :type cons)
+(define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t :if-exists :error)
+(define-container-hash-accessor :i byterevval :container-transform bitfield-byterevvals :parametrize-container t :if-exists :error :type byteval)
 
 ;; This one stands out: going through dictionaries.
 (declaim (ftype (function (space symbol) register)))
@@ -614,18 +615,20 @@
 (defun register-format-field-type (name)
   (format-symbol t "~A-BITFIELD" name))
 
-(defun define-bitfield (format name size pos doc &optional bytevals)
+(defun define-byteval (bitfield byte value name documentation)
+  (lret ((byteval (make-byteval :name name :byte byte :value value :documentation documentation)))
+    (setf (byteval bitfield name) byteval
+          (byterevval bitfield value) byteval)))
+
+(defun define-bitfield (format name size pos doc &optional byteval-specs)
   (let* ((byte (byte size pos))
 	 (space (format-space format))
 	 (bitfield (make-bitfield :format% format :name name :spec byte :documentation doc)))
     (push bitfield (format-bitfields format))
-    (loop :for (value name documentation) :in bytevals
-                                          :do (let ((byteval (make-byteval :name name :documentation documentation :byte byte :value value)))
-                                                (setf (gethash name (bitfield-bytevals bitfield)) byteval
-                                                      (gethash value (bitfield-byterevvals bitfield)) byteval)))
+    (mapc (curry #'apply #'define-byteval bitfield byte) byteval-specs)
     (dolist (space (list* space (mapcar #'space (space-referrers space))))
-      (setf (gethash name (bitfield-bytes space)) byte
-	    (gethash name (bitfields space)) bitfield))))
+      (setf (bitfield space name) bitfield
+            (bitfield-byte space name) byte))))
 
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
@@ -733,7 +736,7 @@
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
   (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
 	 (let* ((val (ldb (bitfield-spec bitfield) value)))
-	   (if-let ((field (gethash val (bitfield-byterevvals bitfield))))
+	   (if-let ((field (byterevval bitfield val)))
 		   (name field)
                    (if symbolise-unknowns
                        (format-symbol :keyword "UNKNOWN-VALUE-~B" val)
