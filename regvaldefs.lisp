@@ -58,7 +58,7 @@
   bitfields)
 
 (defstruct (bitfield (:include spaced))
-  format%
+  (formats% nil :type list)
   spec
   (bytevals (make-hash-table) :type hash-table)
   (byterevvals (make-hash-table) :type hash-table))
@@ -608,9 +608,9 @@
   (:report (conflicting-bitfield expected-format)
            "~@<Bitfield ~S does not belong to register format ~S.~:@>" conflicting-bitfield expected-format))
 
-(defun bitfield-format (space bitfield-name)
+(defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
-  (bitfield-format% (bitfield space bitfield-name)))
+  (bitfield-formats% (bitfield space bitfield-name)))
 
 (defun register-format-field-type (name)
   (format-symbol t "~A-BITFIELD" name))
@@ -620,7 +620,8 @@
     (setf (byteval bitfield name) byteval
           (byterevval bitfield value) byteval)))
 
-(defun define-bitfield (format name size pos doc &optional byteval-specs)
+(defun ensure-bitfield (format name size pos doc &optional byteval-specs)
+  (error "~@<Must merge soon.~:@>")
   (let* ((byte (byte size pos))
 	 (space (format-space format))
 	 (bitfield (make-bitfield :format% format :name name :spec byte :documentation doc)))
@@ -633,7 +634,7 @@
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
   (let ((format (make-format :name name :documentation documentation :space space)))
-    (mapc [apply [define-bitfield format]] bitspecs)
+    (mapc [apply [ensure-bitfield format]] bitspecs)
     (setf (format name) format)))
 
 (defmacro define-register-format (&environment env name doc &rest bitspecs)
@@ -756,14 +757,16 @@
 ;;;;  F R O N T E N D
 ;;;;
 ;;;;
-(defun bytenames-ensure-same-register (space regname bytenames)
-  "Deduce register difference from register format difference and signal an error, if any."
-  (let ((fmt (if regname (reg-format (register space regname))
-                 (bitfield-format space (first bytenames)))))
-    (if-let ((stray (find-if-not {[eq fmt] [bitfield-format space]} bytenames)))
-	    (error 'bit-notation-conflicting-bitfield-names
-		   :expected-format (name fmt) ;; (name reg) (name (bitfield-format space stray))
-                   :conflicting-bitfield stray))))
+(defun find-format-with-bytenames (bytenames)
+  #| there... |#)
+
+(defun bytenames-check-format (format bytenames)
+  "Raise an error when any of BYTENAMES do not have FORMAT associated 
+   with them."
+  (if-let ((stray (find-if-not {[member format] [bitfield-formats (spaced-space format)]} bytenames)))
+          (error 'bit-notation-conflicting-bitfield-names
+                 :expected-format (name format)
+                 :conflicting-bitfield stray)))
 
 (defun mkenv (space-name bitfield-name &aux (bitfield (bitfield (space space-name) bitfield-name)))
   (make-environment
@@ -780,20 +783,27 @@
                    (every (lambda (bf) (bitfield space bf :if-does-not-exist :continue)) bytenames))
           (return space))))
 
-(defmacro decode-context ((spacename &optional space-want bitfield fmtname) regname bytenames &body body)
+(defmacro decode-context ((spacename &optional space-want bitfield fmtname-want) regname bytenames &body body)
   (unless (or regname bytenames)
     (error "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
-  (let ((space (or space-want (gensym))) (newbytenames (gensym)))
-    `(let* ((,space ,(if regname `(register-space ,regname) `(find-space-with-bytenames (ensure-list ,bytenames)))) (,spacename (space-name ,space))
-            ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
-            ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames)))))
-            ,@(when fmtname `((,fmtname (and ,regname (xform-if #'identity #'name (reg-format (register ,space ,regname))))))))
-       (declare (ignorable ,spacename ,space
-                           ,@(when bytenames `(,newbytenames))
-                           ,@(when (and bitfield bytenames) `(,bitfield))
-                           ,@(when fmtname `(,fmtname))))
-       ,@(when bytenames `((bytenames-ensure-same-register ,space ,regname ,newbytenames)))
-       ,@body)))
+  (let ((space (or space-want (gensym)))
+        (fmtname (or fmtname-want (gensym)))
+        (newbytenames (gensym)))
+    (with-gensyms (format)
+      `(let* ((,space ,(if regname
+                           `(register-space ,regname)
+                           `(find-space-with-bytenames (ensure-list ,bytenames))))
+              (,spacename (space-name ,space))
+              (,fmtname (if ,regname
+                            (xform-if #'identity #'name (reg-format (register ,space ,regname)))
+                            `(find-format-with-bytenames (ensure-list ,bytenames))))
+              ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
+              ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames))))))
+         (declare (ignorable ,spacename ,space ,fmtname
+                             ,@(when bytenames `(,newbytenames))
+                             ,@(when (and bitfield bytenames) `(,bitfield))))
+         ,@(when bytenames `((bytenames-check-format (format ,space ,fmtname) ,newbytenames)))
+         ,@body))))
 
 ;;;
 ;;; So, there are two register access schemes.
