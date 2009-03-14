@@ -606,7 +606,7 @@
   ((conflicting-bitfield :initarg :conflicting-bitfield)
    (expected-format :initarg :expected-format))
   (:report (conflicting-bitfield expected-format)
-           "~@<Encountered unexpected reference to bitfield ~S within context of register format ~S.~:@>" conflicting-bitfield expected-format))
+           "~@<Bitfield ~S does not belong to register format ~S.~:@>" conflicting-bitfield expected-format))
 
 (defun bitfield-format (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
