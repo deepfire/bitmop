@@ -15,7 +15,7 @@
    #:spaceless-layout-reference #:cross-space-inheritance #:device-type-not-directly-instantiable #:conflicting-bitfield-names
    #:invalid-register-access #:invalid-register-read #:invalid-register-write
    ;; LAYOUTS
-   #:layout #:define-layout #:layout-space #:layout-registers #:layout-register-selectors
+   #:layout #:define-layout #:layout-space #:layout-registers #:layout-multi-p #:layout-name-format #:layout-register-selectors
    ;; register stuff
    #:register #:reg-format #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value

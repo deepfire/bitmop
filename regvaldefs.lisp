@@ -66,12 +66,9 @@
 (defstruct (layout (:include spaced) (:constructor %make-layout))
   "Maps register names into register structures."
   name-format
+  layout-multi-p
   registers
   register-selectors)
-
-(defun make-layout (&rest args &key name-format &allow-other-keys)
-  (apply #'%make-layout :name-format (or name-format "~2*~A")
-         (remove-from-plist args :name-format)))
 
 (defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
@@ -527,7 +524,7 @@
 
 (defun device-register-instance-name (device layout name)
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
-  (format-symbol :keyword (layout-name-format layout) (device-type device) (device-id device) name)))
+  (format-symbol :keyword (layout-name-format layout) (device-type device) (device-id device) name))
 
 (defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
@@ -721,18 +718,20 @@
       (setf (register-space name) space))
     (add-symbol (register-dictionary space) name register nil)))
 
-(defun ensure-layout (space name documentation name-format register-specs &aux (selectors (mapcar #'second register-specs)))
-  (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
-    (error 'invalid-register-selectors-in-layout-definition :layout name :bad-selectors bad-selectors))
-  (lret ((layout (make-layout :name name :space space :documentation documentation
-                              :register-selectors selectors :name-format name-format)))
-    (setf (layout space name) layout
-          (layout-registers layout) (iter (for (name selector . rest) in register-specs)
-                                          (collect (apply #'define-register layout name rest))))))
+(defun ensure-layout (space name documentation register-specs multi-p &optional (name-format (if multi-p "~A~D.~A" "~2*~A")))
+  (let ((selectors (mapcar #'second register-specs)))
+    (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
+      (error 'invalid-register-selectors-in-layout-definition :layout name :bad-selectors bad-selectors))
+    (lret ((layout (make-layout :name name :space space :documentation documentation
+                                :register-selectors selectors :multi-p multi-p :name-format name-format)))
+      (setf (layout space name) layout
+            (layout-registers layout) (iter (for (name selector . rest) in register-specs)
+                                            (collect (apply #'define-register layout name rest)))))))
 
 (defmacro define-layout (&environment env (name doc &key multi-p name-format) &rest defs)
   (let ((reginstance-name-format (or name-format (when multi-p "~A~D"))))
-    `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ,reginstance-name-format ',defs)))
+    `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,multi-p
+                    ,@(when name-format `(,name-format)))))
 
 ;;;
 ;;;  o  layout templates
