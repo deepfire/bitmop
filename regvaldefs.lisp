@@ -786,7 +786,7 @@
 (defmacro set-namespace (&rest nsnames)
   (let* ((need-unification (> (length nsnames) 1))
          (name (if need-unification nsnames (first nsnames))))
-    `(eval-when (:compile-toplevel :load-toplevel)
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
        ,@(when need-unification
                `((eval-when (:compile-toplevel :load-toplevel :execute)
                    (unify-namespaces ',nsnames))))
