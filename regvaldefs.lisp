@@ -629,8 +629,9 @@
            "~@<In definition of layout ~S: register selectors~{ ~A~} must be of type FIXNUM.~:@>" layout bad-selectors))
 
 (define-reported-condition incompatible-bitfield-redefinition (bit-notation-error)
-  ((bitfield :initarg :bitfield))
-  (:report (bitfield) "~@<Attempt to incompatibly redefine bitfield ~A.~:@>" bitfield))
+  ((bitfield :initarg :bitfield)
+   (to :initarg :to))
+  (:report (bitfield to) "~@<Attempt to incompatibly redefine bitfield ~A to ~A.~:@>" bitfield to))
 
 (define-condition device-class-definition-error (error)
   ((class :initarg :class)))
@@ -697,7 +698,7 @@
     (let ((incumbent (bitfield space name :if-does-not-exist :continue)))
       (if incumbent 
           (unless (bitfields-equal-p bitfield incumbent)
-            (error 'incompatible-bitfield-redefinition :bitfield name))
+            (error 'incompatible-bitfield-redefinition :bitfield incumbent :to bitfield))
           (dolist (space (list* space (mapcar #'space (space-referrers space))))
             (setf (bitfield space name) bitfield
                   (bitfield-byte space name) byte)))
