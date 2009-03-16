@@ -522,23 +522,25 @@
 (defun device-hash-id (device)
   (list (device-type device) (device-id device)))
 
+(defun device-register-instance-name (device layout name)
+  "Complete a register instance name given NAME and LAYOUT of DEVICE."
+  (format-symbol :keyword (layout-name-format layout) name (device-id device)))
+
 (defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
-  (labels ((name-to-reginstance-name (name layout device)
-             (format-symbol :keyword (layout-name-format layout) name (device-id device))))
-    (iter (for layout in (device-class-layouts device-class))
-          (for (nil reader-name writer-name) in (device-class-effective-layout-specs device-class))
-          (iter (for register in (layout-registers layout))
-                (for selector in (layout-register-selectors layout))
-                (let* ((name (name-to-reginstance-name (name register) layout device))
-                       (id (1+ (hash-table-count *register-instances-by-id*)))
-                       (instance (make-register-instance :name name :register register :device device :selector selector :id id
-                                                         :reader (compute-accessor-function reader-name t) :writer (compute-accessor-function writer-name nil))))
-                  (setf (register-instance-by-id id) instance)
-                  (iter (for riname in (cons name (mapcar (rcurry #'name-to-reginstance-name layout device)
-                                                          (reg-aliases register))))
-                        (assert riname)
-                        (setf (register-instance riname) instance)))))))
+  (iter (for layout in (device-class-layouts device-class))
+        (for (nil reader-name writer-name) in (device-class-effective-layout-specs device-class))
+        (iter (for register in (layout-registers layout))
+              (for selector in (layout-register-selectors layout))
+              (let* ((name (device-register-instance-name device layout (name register)))
+                     (id (1+ (hash-table-count *register-instances-by-id*)))
+                     (instance (make-register-instance :name name :register register :device device :selector selector :id id
+                                                       :reader (compute-accessor-function reader-name t) :writer (compute-accessor-function writer-name nil))))
+                (setf (register-instance-by-id id) instance)
+                (iter (for riname in (cons name (mapcar (curry #'device-register-instance-name device layout)
+                                                        (reg-aliases register))))
+                      (assert riname)
+                      (setf (register-instance riname) instance))))))
 
 (defmethod initialize-instance :around ((device device) &key &allow-other-keys)
   (when *verbose-device-init-p*
