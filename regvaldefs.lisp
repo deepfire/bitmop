@@ -70,7 +70,7 @@
   register-selectors)
 
 (defun make-layout (&rest args &key name-format &allow-other-keys)
-  (apply #'%make-layout :name-format (or name-format (cl:format nil "~~A~~^"))
+  (apply #'%make-layout :name-format (or name-format "~2*~A")
          (remove-from-plist args :name-format)))
 
 (defstruct (register (:include spaced) (:conc-name reg-))
@@ -527,7 +527,7 @@
 
 (defun device-register-instance-name (device layout name)
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
-  (format-symbol :keyword (layout-name-format layout) name (device-id device)))
+  (format-symbol :keyword (layout-name-format layout) (device-type device) (device-id device) name)))
 
 (defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
