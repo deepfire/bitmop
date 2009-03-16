@@ -183,8 +183,11 @@
 (defclass extended-register-device-class (device-class)
   ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
 
-(defun invalid-register-access-read-trap (&rest rest) (declare (ignore rest)) (error 'invalid-register-read))
-(defun invalid-register-access-write-trap (&rest rest) (declare (ignore rest)) (error 'invalid-register-write))
+(defun invalid-register-access-read-trap (device selector)
+  (error 'invalid-register-read :device device :selector selector))
+
+(defun invalid-register-access-write-trap (value device selector)
+  (error 'invalid-register-write :value value :device device :selector selector))
 
 (defmethod device-class-register-selector ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i))
 (defmethod device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i))
@@ -662,9 +665,16 @@
   (:report (conflicting-bitfield expected-format)
            "~@<Bitfield ~S does not belong to register format ~S.~:@>" conflicting-bitfield expected-format))
 
-(define-condition invalid-register-access (bit-notation-error) ())
-(define-reported-condition invalid-register-read (invalid-register-access)  () (:report () "~@<Invalid register read.~:@>"))
-(define-reported-condition invalid-register-write (invalid-register-access) () (:report () "~@<Invalid register write.~:@>"))
+(define-condition invalid-register-access (bit-notation-error)
+  ((device :initarg :device)
+   (selector :initarg :selector)))
+
+(define-reported-condition invalid-register-read (invalid-register-access)
+  () (:report (device selector) "~@<Invalid register read for device ~S, selector 0x~X.~:@>" device selector))
+
+(define-reported-condition invalid-register-write (invalid-register-access)
+  ((value :initarg :value))
+  (:report (value device selector) "~@<Invalid register write of ~8,'0X for device ~S, selector 0x~X.~:@>" value device selector))
 
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
