@@ -63,10 +63,10 @@
   (bytevals (make-hash-table) :type hash-table)
   (byterevvals (make-hash-table) :type hash-table))
 
-(defstruct (layout (:include spaced) (:constructor %make-layout))
+(defstruct (layout (:include spaced))
   "Maps register names into register structures."
   name-format
-  layout-multi-p
+  multi-p
   registers
   register-selectors)
 
