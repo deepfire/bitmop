@@ -525,7 +525,7 @@
 (defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
   (labels ((name-to-reginstance-name (name layout device)
-             (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
+             (format-symbol :keyword (layout-name-format layout) name (device-id device))))
     (iter (for layout in (device-class-layouts device-class))
           (for (nil reader-name writer-name) in (device-class-effective-layout-specs device-class))
           (iter (for register in (layout-registers layout))
