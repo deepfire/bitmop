@@ -419,8 +419,8 @@
       (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs))
             (eligible-parents (remove-if-not (lambda (pc) (and (device-class-p pc) (device-class-space pc))) (class-direct-superclasses device-class))))
         (when-let ((misspaced (remove-if (curry #'eq space) (mapcar #'device-class-space eligible-parents))))
-          (error "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>"
-                 (class-name device-class) (space-name space) (mapcar #'space-name misspaced)))
+          (error 'cross-space-inheritance
+                 :class (class-name device-class) :required-space (space-name space) :actual-spaces (mapcar #'space-name misspaced)))
         (multiple-value-bind (inherited-layout-instances inherited-layout-specs) (compute-inherited-layouts direct-layout-instances eligible-parents)
           ;; fill in the basics and register self
           (setf (device-class-layouts device-class) (append inherited-layout-instances direct-layout-instances)
@@ -433,13 +433,13 @@
             (let ((providing-parents (mapcar (rcurry #'find eligible-parents :key #'device-class-layouts :test #'member) inherited-layout-instances)))
               (mapc (curry #'apply #'map-add-layout-specs space)
                     `((,direct-layout-specs    ,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
-                      (,direct-layout-specs    ,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
-                      (,direct-layout-specs    ,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w))))
+                      (,direct-layout-specs    ,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r t))))
+                      (,direct-layout-specs    ,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w nil))))
                       (,inherited-layout-specs ,selectors ,(y (nil nil nil p) (y (id nil) (aref (device-class-selectors p) id))) ,providing-parents)
                       (,inherited-layout-specs ,readers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-readers p) id))) ,providing-parents)
                       (,inherited-layout-specs ,writers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-writers p) id))) ,providing-parents)))))))
       (if direct-layout-specs
-          (error "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" (class-name device-class))
+	  (error 'spaceless-layout-reference :class (class-name device-class))
           ;; Messing with initargs would be way too painful...
           (with-slots (space layouts direct-layout-specs effective-layout-specs selectors readers writers) device-class
             (setf (values space layouts direct-layout-specs effective-layout-specs selectors readers writers)
@@ -533,7 +533,7 @@
                 (let* ((name (name-to-reginstance-name (name register) layout device))
                        (id (1+ (hash-table-count *register-instances-by-id*)))
                        (instance (make-register-instance :name name :register register :device device :selector selector :id id
-                                                         :reader (compute-accessor-function reader-name) :writer (compute-accessor-function writer-name))))
+                                                         :reader (compute-accessor-function reader-name t) :writer (compute-accessor-function writer-name nil))))
                   (setf (register-instance-by-id id) instance)
                   (iter (for riname in (cons name (mapcar (rcurry #'name-to-reginstance-name layout device)
                                                           (reg-aliases register))))
@@ -558,7 +558,7 @@
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
     (unless space
-      (error "~@<Device type ~S is not directly instantiable: it claims no space.~:@>" (type-of device)))
+      (error 'device-type-not-directly-instantiable :type (type-of device)))
     (push device (instances device))
     (setf (device-id device) (1- (length (instances device)))
           (device-selectors device) (device-class-selectors device-class)
@@ -595,19 +595,63 @@
   (clrhash *register-instances*)
   (clrhash *register-instances-by-id*))
 
-(define-condition bit-notation-condition (error) ())
+(define-condition bit-notation-error (error) ())
 
-(define-reported-condition bit-notation-no-space-context-error (bit-notation-condition)
+(define-reported-condition underspecified-context (bit-notation-no-space-context-error)
+  ()
+  (:report () "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
+
+(define-reported-condition bitfields-divergent-in-space (bit-notation-no-space-context-error)
+  ((bitfields :initarg :bitfields)
+   (space :initarg :space))
+  (:report (bitfields space) "~@<Unable to find a common format for bitfields ~{ ~A~} in space ~S~:@>" bitfields space))
+
+(define-reported-condition namespace-unification-conflict (bit-notation-error)
+  ((namespaces :initarg :namespaces)
+   (slot :initarg :slot)
+   (key :initarg :key))
+  (:report (namespaces slot key) "Conflict during namespace unification. Namespaces ~S, slot ~S, key ~S." namespaces slot key))
+
+(define-reported-condition invalid-register-selectors-in-layout-definition (bit-notation-error)
+  ((layout :initarg :layout)
+   (bad-selectors :initarg :bad-selectors))
+  (:report (layout bad-selectors)
+	   "~@<In definition of layout ~S: register selectors~{ ~A~} must be of type FIXNUM.~:@>" layout bad-selectors))
+
+(define-reported-condition incompatible-bitfield-redefinition (bit-notation-error)
+  ((bitfield :initarg :bitfield))
+  (:report (bitfield) "~@<Attempt to incompatibly redefine bitfield ~A.~:@>" bitfield))
+
+(define-condition device-class-definition-error (error)
+  ((class :initarg :class)))
+
+(define-reported-condition spaceless-layout-reference (device-class-definition-error)
+  ()
+  (:report (class)
+	   "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" class))
+
+(define-reported-condition cross-space-inheritance (device-class-definition-error)
+  ((required-space :initarg :required-space)
+   (actual-spaces :initarg :actual-spaces))
+  (:report (class required-space actual-spaces)
+	   "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>"
+	   class required-space actual-spaces))
+
+(define-reported-condition device-type-not-directly-instantiable (bit-notation-error)
+  ((type :initarg :type))
+  (:report (type) "~@<Device type ~S is not directly instantiable: it claims no space.~:@>" type))
+
+(define-reported-condition no-space-context (bit-notation-error)
   ()
   (:report () "~@<Attempt to use names in a null space context.~:@>"))
 
-(define-reported-condition bit-notation-conflicting-bitfield-names (bit-notation-condition)
+(define-reported-condition conflicting-bitfield-names (bit-notation-error)
   ((conflicting-bitfield :initarg :conflicting-bitfield)
    (expected-format :initarg :expected-format))
   (:report (conflicting-bitfield expected-format)
            "~@<Bitfield ~S does not belong to register format ~S.~:@>" conflicting-bitfield expected-format))
 
-(define-condition invalid-register-access (bit-notation-condition) ())
+(define-condition invalid-register-access (bit-notation-error) ())
 (define-reported-condition invalid-register-read (invalid-register-access)  () (:report () "~@<Invalid register read.~:@>"))
 (define-reported-condition invalid-register-write (invalid-register-access) () (:report () "~@<Invalid register write.~:@>"))
 
@@ -623,16 +667,31 @@
     (setf (byteval bitfield name) byteval
           (byterevval bitfield value) byteval)))
 
+(defun bytevals-equal-p (b1 b2)
+  (or (eq b1 b2)
+      (and (eq (name b1) (name b2))
+	   (equal (byteval-byte b1) (byteval-byte b1))
+	   (= (byteval-value b1) (byteval-value b2))
+	   (string= (documentation b1) (documentation b2)))))
+
+(defun bitfields-equal-p (b1 b2)
+  (or (eq b1 b2)
+      (and (equal (bitfield-spec b1) (bitfield-spec b2))
+	   (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
+
 (defun ensure-bitfield (format name size pos doc &optional byteval-specs)
-  (error "~@<Must merge soon.~:@>")
   (let* ((byte (byte size pos))
 	 (space (format-space format))
-	 (bitfield (make-bitfield :format% format :name name :spec byte :documentation doc)))
-    (push bitfield (format-bitfields format))
+	 (bitfield (make-bitfield :name name :spec byte :documentation doc)))
     (mapc (curry #'apply #'define-byteval bitfield byte) byteval-specs)
-    (dolist (space (list* space (mapcar #'space (space-referrers space))))
-      (setf (bitfield space name) bitfield
-            (bitfield-byte space name) byte))))
+    (let ((incumbent (bitfield space name :if-does-not-exist :continue)))
+      (if incumbent 
+	  (unless (bitfields-equal-p bitfield incumbent)
+	    (error 'incompatible-bitfield-redefinition :bitfield name))
+	  (dolist (space (list* space (mapcar #'space (space-referrers space))))
+	    (setf (bitfield space name) bitfield
+		  (bitfield-byte space name) byte)))
+      (push (or incumbent bitfield) (format-bitfields format)))))
 
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
@@ -657,8 +716,8 @@
     (add-symbol (register-dictionary space) name register nil)))
 
 (defun ensure-layout (space name documentation name-format register-specs &aux (selectors (mapcar #'second register-specs)))
-  (unless (every (of-type 'fixnum) selectors)
-    (error "~@<While defining layout ~S: register selectors must be of type FIXNUM.~:@>" name))
+  (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
+    (error 'invalid-register-selectors-in-layout-definition :layout name :bad-selectors bad-selectors))
   (lret ((layout (make-layout :name name :space space :documentation documentation
                               :register-selectors selectors :name-format name-format)))
     (setf (layout space name) layout
@@ -695,7 +754,7 @@
 	       (let* ((accessor-fn (fdefinition accessor-name))
 		      (hash-table (funcall accessor-fn unispace)))
 		 (when (gethash key hash-table)
-		   (error "Namespace conflict while trying to unify namespaces ~S: accessor ~S, key ~S." names accessor-name key))
+		   (error 'namespace-unification-conflict :namespaces names :slot accessor-name :key key))
 		 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
 	(pushnew names (space-referrers space) :test #'equal)
@@ -707,7 +766,7 @@
 (defun environment-space-name-context (env)
   (let ((space-name (macroexpand-1 '*space* env)))
     (unless space-name
-      (error 'bit-notation-no-space-context-error))
+      (error 'no-space-context))
     space-name))
 
 (defmacro space-name-context (&environment env)
@@ -716,8 +775,6 @@
 (defmacro with-namespaces ((&rest nsnames) &body body)
   (let* ((need-unification (> (length nsnames) 1))
          (name (if need-unification nsnames (first nsnames))))
-    (when-let ((orphan (find-if-not #'space nsnames)))
-      (error "reference to an undefined namespace ~S" orphan))
     `(progn
        ,@(when need-unification
                `((eval-when (:compile-toplevel :load-toplevel :execute)
@@ -728,8 +785,6 @@
 (defmacro set-namespace (&rest nsnames)
   (let* ((need-unification (> (length nsnames) 1))
 	 (name (if need-unification nsnames (first nsnames))))
-    (when-let ((orphan (find-if-not #'space nsnames)))
-      (error "reference to an undefined namespace ~S" orphan))
     `(eval-when (:compile-toplevel :load-toplevel)
        ,@(when need-unification
 	       `((eval-when (:compile-toplevel :load-toplevel :execute)
@@ -767,9 +822,7 @@
   "Raise an error when any of BYTENAMES do not have FORMAT associated 
    with them."
   (if-let ((stray (find-if-not {[member format] [bitfield-formats (spaced-space format)]} bytenames)))
-          (error 'bit-notation-conflicting-bitfield-names
-                 :expected-format (name format)
-                 :conflicting-bitfield stray)))
+          (error 'conflicting-bitfield-names :expected-format (name format) :conflicting-bitfield stray)))
 
 (defun mkenv (space-name bitfield-name &aux (bitfield (bitfield (space space-name) bitfield-name)))
   (make-environment
@@ -788,7 +841,7 @@
 
 (defmacro decode-context ((spacename &optional space-want bitfield fmtname) regname bytenames &body body)
   (unless (or regname bytenames)
-    (error "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
+    (error 'underspecified-context))
   (let ((space (or space-want (gensym)))
         (newbytenames (gensym)))
     (with-gensyms (format)
@@ -798,8 +851,9 @@
               (,spacename (space-name ,space))
 	      (,format (if ,regname
 			   (reg-format (register ,space ,regname))
-			   ;; Bytenames were collated to be equivalent, so ambiguity is harmless.
-			   (first (formats-with-bytenames ,space (ensure-list ,bytenames)))))
+			   (if-let ((formats (formats-with-bytenames ,space (ensure-list ,bytenames))))
+			     (first formats) ; Bytenames were collated to be equivalent, so ambiguity is harmless.
+			     (error 'bitfields-divergent-in-space :bitfields ,bytenames :space ,space))))
               ,@(when fmtname `((,fmtname (name ,format))))
               ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
               ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames))))))
