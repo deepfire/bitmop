@@ -63,6 +63,13 @@
   (bytevals (make-hash-table) :type hash-table)
   (byterevvals (make-hash-table) :type hash-table))
 
+(defmethod print-object ((o bitfield) stream &aux (byte (bitfield-spec o)))
+  (print-unreadable-object (o stream)
+    (common-lisp:format stream "~@<BITFIELD ~;~A (byte ~D ~D)~:[~;~:* values:~{ ~D:~A~}~]~:@>"
+                        (name o) (byte-size byte) (byte-position byte)
+                        (iter (for (name byteval) in-hashtable (bitfield-bytevals o))
+                              (collect (byteval-value byteval)) (collect name)))))
+
 (defstruct (layout (:include spaced))
   "Maps register names into register structures."
   name-format
