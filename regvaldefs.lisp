@@ -757,8 +757,8 @@
 ;;;;  F R O N T E N D
 ;;;;
 ;;;;
-(defun find-format-with-bytenames (bytenames)
-  #| there... |#)
+(defun formats-with-bytenames (space bytenames)
+  (reduce #'intersection (mapcar (curry #'bitfield-formats space) bytenames)))
 
 (defun bytenames-check-format (format bytenames)
   "Raise an error when any of BYTENAMES do not have FORMAT associated 
@@ -783,26 +783,27 @@
                    (every (lambda (bf) (bitfield space bf :if-does-not-exist :continue)) bytenames))
           (return space))))
 
-(defmacro decode-context ((spacename &optional space-want bitfield fmtname-want) regname bytenames &body body)
+(defmacro decode-context ((spacename &optional space-want bitfield fmtname) regname bytenames &body body)
   (unless (or regname bytenames)
     (error "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
   (let ((space (or space-want (gensym)))
-        (fmtname (or fmtname-want (gensym)))
         (newbytenames (gensym)))
     (with-gensyms (format)
       `(let* ((,space ,(if regname
                            `(register-space ,regname)
                            `(find-space-with-bytenames (ensure-list ,bytenames))))
               (,spacename (space-name ,space))
-              (,fmtname (if ,regname
-                            (xform-if #'identity #'name (reg-format (register ,space ,regname)))
-                            `(find-format-with-bytenames (ensure-list ,bytenames))))
+	      (,format (if ,regname
+			   (reg-format (register ,space ,regname))
+			   ;; Bytenames were collated to be equivalent, so ambiguity is harmless.
+			   (first (formats-with-bytenames ,space (ensure-list ,bytenames)))))
+              ,@(when fmtname `((,fmtname (name ,format))))
               ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
               ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames))))))
-         (declare (ignorable ,spacename ,space ,fmtname
+         (declare (ignorable ,spacename ,space ,format
                              ,@(when bytenames `(,newbytenames))
                              ,@(when (and bitfield bytenames) `(,bitfield))))
-         ,@(when bytenames `((bytenames-check-format (format ,space ,fmtname) ,newbytenames)))
+         ,@(when bytenames `((bytenames-check-format ,format ,newbytenames)))
          ,@body))))
 
 ;;;
