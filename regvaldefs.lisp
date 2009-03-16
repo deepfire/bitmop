@@ -292,6 +292,9 @@
 (defmethod print-object ((device device) stream)
   (print-device-object device stream))
 
+(defclass slave-device (device)
+  ((master :accessor slave-device-master :initarg :master)))
+
 (defclass extended-register-device (device)
   ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
   (:metaclass extended-register-device-class))

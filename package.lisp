@@ -33,6 +33,7 @@
    ;; device classes
    #:device #:id #:device-id #:class-of-device #:device-selectors #:device-register-selector #:backend #:device-backend #:device-register #:instances
    #:print-device-object
+   #:slave-device #:slave-device-master
    #:device-type ;; this one is special: goes through category
    #:extended-register-device #:device-extensions
    #:struct-device #:make-struct-device-instance
