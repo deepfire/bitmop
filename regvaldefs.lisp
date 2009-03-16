@@ -179,17 +179,16 @@
 (defclass extended-register-device-class (device-class)
   ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
 
-(defun invalid-register-access-trap (&rest rest)
-  (declare (ignore rest))
-  (error "~@<Invalid register access.~:@>"))
+(defun invalid-register-access-read-trap (&rest rest) (declare (ignore rest)) (error 'invalid-register-read))
+(defun invalid-register-access-write-trap (&rest rest) (declare (ignore rest)) (error 'invalid-register-write))
 
 (defmethod device-class-register-selector ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i))
 (defmethod device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i))
 (defmethod device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-writers o) i))
 (defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-readers o) i) fn))
 (defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-writers o) i) fn))
-(defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null)) (setf (aref (device-class-readers o) i) #'invalid-register-access-trap))
-(defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null)) (setf (aref (device-class-writers o) i) #'invalid-register-access-trap))
+(defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null)) (setf (aref (device-class-readers o) i) #'invalid-register-access-read-trap))
+(defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null)) (setf (aref (device-class-writers o) i) #'invalid-register-access-write-trap))
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
 
@@ -325,8 +324,8 @@
              (concatenate (list 'vector (array-element-type old-pool))
                           old-pool (make-list (- required-length (length old-pool)) :initial-element initial-element))))
       (iter (for (slot-name type initial) in `((selectors fixnum 0)
-                                               (readers function ,#'invalid-register-access-trap)
-                                               (writers function ,#'invalid-register-access-trap)))
+                                               (readers function ,#'invalid-register-access-read-trap)
+                                               (writers function ,#'invalid-register-access-write-trap)))
             (setf (slot-value device-class slot-name)
                   (case (class-reallocation-effective-requirement device-class required-length slot-name)
                     (:new (new-pool type initial))
@@ -348,8 +347,8 @@
   (iter (for register in (layout-registers layout))
         (funcall fn (symbol-id dictionary (name register)))))
 
-(defun compute-accessor-function (name)
-  (if (and (not (eq name t)) name) (fdefinition name) #'invalid-register-access-trap))
+(defun compute-accessor-function (name reader-p)
+  (if (typep name 'boolean) (if reader-p #'invalid-register-access-read-trap #'invalid-register-access-write-trap) (fdefinition name)))
 
 (defun map-add-layout-specs (space layout-specs map fn-maker &optional values)
   "Replace MAP entry sets corresponding to successive layout register id sets
@@ -397,8 +396,8 @@
     (with-slots (selectors readers writers) struct-device-class
       (mapc (curry #'apply #'map-add-layout-specs space direct-layout-specs)
             `((,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
-              (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r))))
-              (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w)))))))))
+              (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r t))))
+              (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w nil)))))))))
 
 (defun initialize-device-class (device-class space direct-layout-specs)
   "Initialize DEVICE-CLASS according to SPACE and DIRECT-LAYOUT-SPECS.
@@ -607,6 +606,10 @@
    (expected-format :initarg :expected-format))
   (:report (conflicting-bitfield expected-format)
            "~@<Bitfield ~S does not belong to register format ~S.~:@>" conflicting-bitfield expected-format))
+
+(define-condition invalid-register-access (bit-notation-condition) ())
+(define-reported-condition invalid-register-read (invalid-register-access)  () (:report () "~@<Invalid register read.~:@>"))
+(define-reported-condition invalid-register-write (invalid-register-access) () (:report () "~@<Invalid register write.~:@>"))
 
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
