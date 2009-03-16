@@ -1,4 +1,4 @@
-;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10 -*-
+;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10; indent-tabs-mode: nil -*-
 ;;;
 ;;;  (c) copyright 2007-2008 by
 ;;;           Samium Gromoff (_deepfire@feelingofgreen.ru)

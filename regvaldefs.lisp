@@ -1,4 +1,4 @@
-;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10 -*-
+;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10; indent-tabs-mode: nil -*-
 ;;;
 ;;;  (c) copyright 2007-2008 by
 ;;;           Samium Gromoff (_deepfire@feelingofgreen.ru)
@@ -71,7 +71,7 @@
 
 (defun make-layout (&rest args &key name-format &allow-other-keys)
   (apply #'%make-layout :name-format (or name-format (cl:format nil "~~A~~^"))
-	 (remove-from-plist args :name-format)))
+         (remove-from-plist args :name-format)))
 
 (defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
@@ -439,7 +439,7 @@
                       (,inherited-layout-specs ,readers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-readers p) id))) ,providing-parents)
                       (,inherited-layout-specs ,writers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-writers p) id))) ,providing-parents)))))))
       (if direct-layout-specs
-	  (error 'spaceless-layout-reference :class (class-name device-class))
+          (error 'spaceless-layout-reference :class (class-name device-class))
           ;; Messing with initargs would be way too painful...
           (with-slots (space layouts direct-layout-specs effective-layout-specs selectors readers writers) device-class
             (setf (values space layouts direct-layout-specs effective-layout-specs selectors readers writers)
@@ -525,7 +525,7 @@
 (defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
   (labels ((name-to-reginstance-name (name layout device)
-	     (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
+             (format-symbol :keyword (layout-name-format layout) name (1- (device-id device)))))
     (iter (for layout in (device-class-layouts device-class))
           (for (nil reader-name writer-name) in (device-class-effective-layout-specs device-class))
           (iter (for register in (layout-registers layout))
@@ -548,7 +548,7 @@
 
 (defun make-struct-device-instance (type &rest initargs)
   (lret* ((class (device-class type))
-	  (space (struct-device-class-space class))
+          (space (struct-device-class-space class))
           (instance (apply (struct-device-class-constructor class) :id (1- (length (struct-device-class-instances class))) initargs)))
     (push instance (struct-device-class-instances class))
     (setf (gethash (device-hash-id instance) (devices space)) instance)
@@ -616,7 +616,7 @@
   ((layout :initarg :layout)
    (bad-selectors :initarg :bad-selectors))
   (:report (layout bad-selectors)
-	   "~@<In definition of layout ~S: register selectors~{ ~A~} must be of type FIXNUM.~:@>" layout bad-selectors))
+           "~@<In definition of layout ~S: register selectors~{ ~A~} must be of type FIXNUM.~:@>" layout bad-selectors))
 
 (define-reported-condition incompatible-bitfield-redefinition (bit-notation-error)
   ((bitfield :initarg :bitfield))
@@ -628,14 +628,14 @@
 (define-reported-condition spaceless-layout-reference (device-class-definition-error)
   ()
   (:report (class)
-	   "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" class))
+           "~@<During initialization of device class ~S: layouts can not be specified without space.~:@>" class))
 
 (define-reported-condition cross-space-inheritance (device-class-definition-error)
   ((required-space :initarg :required-space)
    (actual-spaces :initarg :actual-spaces))
   (:report (class required-space actual-spaces)
-	   "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>"
-	   class required-space actual-spaces))
+           "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>"
+           class required-space actual-spaces))
 
 (define-reported-condition device-type-not-directly-instantiable (bit-notation-error)
   ((type :initarg :type))
@@ -670,35 +670,35 @@
 (defun bytevals-equal-p (b1 b2)
   (or (eq b1 b2)
       (and (eq (name b1) (name b2))
-	   (equal (byteval-byte b1) (byteval-byte b1))
-	   (= (byteval-value b1) (byteval-value b2))
-	   (string= (documentation b1) (documentation b2)))))
+           (equal (byteval-byte b1) (byteval-byte b1))
+           (= (byteval-value b1) (byteval-value b2))
+           (string= (documentation b1) (documentation b2)))))
 
 (defun bitfields-equal-p (b1 b2)
   (or (eq b1 b2)
       (and (equal (bitfield-spec b1) (bitfield-spec b2))
-	   (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
+           (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
 
 (defun ensure-bitfield (format name size pos doc &optional byteval-specs)
   (let* ((byte (byte size pos))
-	 (space (format-space format))
-	 (bitfield (make-bitfield :name name :spec byte :documentation doc)))
+         (space (format-space format))
+         (bitfield (make-bitfield :name name :spec byte :documentation doc)))
     (mapc (curry #'apply #'define-byteval bitfield byte) byteval-specs)
     (let ((incumbent (bitfield space name :if-does-not-exist :continue)))
       (if incumbent 
-	  (unless (bitfields-equal-p bitfield incumbent)
-	    (error 'incompatible-bitfield-redefinition :bitfield name))
-	  (dolist (space (list* space (mapcar #'space (space-referrers space))))
-	    (setf (bitfield space name) bitfield
-		  (bitfield-byte space name) byte)))
+          (unless (bitfields-equal-p bitfield incumbent)
+            (error 'incompatible-bitfield-redefinition :bitfield name))
+          (dolist (space (list* space (mapcar #'space (space-referrers space))))
+            (setf (bitfield space name) bitfield
+                  (bitfield-byte space name) byte)))
       (lret ((elected-bitfield (or incumbent bitfield)))
-	(push format (bitfield-formats% elected-bitfield))))))
+        (push format (bitfield-formats% elected-bitfield))))))
 
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
   (let ((format (make-format :name name :documentation documentation :space space)))
     (setf (format-bitfields format) (mapcar [apply [ensure-bitfield format]] bitspecs)
-	  (format name) format)))
+          (format name) format)))
 
 (defmacro define-register-format (&environment env name doc &rest bitspecs)
   `(eval-when (:compile-toplevel :load-toplevel)
@@ -748,20 +748,20 @@
   
 (defun unify-namespaces (names)
   (let* ((spaces (mapcar #'space names))
-	 (unispace (make-instance 'space :name names
-					 :documentation (cl:format nil "Unified namespace of:~{ ~S~}."
+         (unispace (make-instance 'space :name names
+                                         :documentation (cl:format nil "Unified namespace of:~{ ~S~}."
                                                                    (mapcar #'space-documentation spaces)))))
     (labels ((check-import-unispace (accessor-name key val)
-	       (let* ((accessor-fn (fdefinition accessor-name))
-		      (hash-table (funcall accessor-fn unispace)))
-		 (when (gethash key hash-table)
-		   (error 'namespace-unification-conflict :namespaces names :slot accessor-name :key key))
-		 (setf (gethash key hash-table) val))))
+               (let* ((accessor-fn (fdefinition accessor-name))
+                      (hash-table (funcall accessor-fn unispace)))
+                 (when (gethash key hash-table)
+                   (error 'namespace-unification-conflict :namespaces names :slot accessor-name :key key))
+                 (setf (gethash key hash-table) val))))
       (dolist (space spaces)
-	(pushnew names (space-referrers space) :test #'equal)
-	(dolist (accessor-name '(bitfields bitfield-bytes layouts))
-	  (let ((checker-importer (curry #'check-import-unispace accessor-name)))
-	    (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
+        (pushnew names (space-referrers space) :test #'equal)
+        (dolist (accessor-name '(bitfields bitfield-bytes layouts))
+          (let ((checker-importer (curry #'check-import-unispace accessor-name)))
+            (maphash checker-importer (funcall (fdefinition accessor-name) space))))))
     (setf (space names) unispace)))
 
 (defun environment-space-name-context (env)
@@ -785,26 +785,26 @@
 
 (defmacro set-namespace (&rest nsnames)
   (let* ((need-unification (> (length nsnames) 1))
-	 (name (if need-unification nsnames (first nsnames))))
+         (name (if need-unification nsnames (first nsnames))))
     `(eval-when (:compile-toplevel :load-toplevel)
        ,@(when need-unification
-	       `((eval-when (:compile-toplevel :load-toplevel :execute)
+               `((eval-when (:compile-toplevel :load-toplevel :execute)
                    (unify-namespaces ',nsnames))))
        (define-symbol-macro *space* ,name))))
 
 (defun bitfield-decode (bitfield value &key (symbolise-unknowns t))
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
   (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
-	 (let* ((val (ldb (bitfield-spec bitfield) value)))
-	   (if-let ((field (byterevval bitfield val)))
-		   (name field)
+         (let* ((val (ldb (bitfield-spec bitfield) value)))
+           (if-let ((field (byterevval bitfield val)))
+                   (name field)
                    (if symbolise-unknowns
                        (format-symbol :keyword "UNKNOWN-VALUE-~B" val)
                        val))))
-	((> (car (bitfield-spec bitfield)) 1) ;; bitfield-wide-p?
-	 (ldb (bitfield-spec bitfield) value))
-	(t
-	 (ldb-test (bitfield-spec bitfield) value))))
+        ((> (car (bitfield-spec bitfield)) 1) ;; bitfield-wide-p?
+         (ldb (bitfield-spec bitfield) value))
+        (t
+         (ldb-test (bitfield-spec bitfield) value))))
 
 (defun format-decode (format value &key (symbolise-unknowns t))
   (declare (type format format) (type (unsigned-byte 32) value))
@@ -850,11 +850,11 @@
                            `(register-space ,regname)
                            `(find-space-with-bytenames (ensure-list ,bytenames))))
               (,spacename (space-name ,space))
-	      (,format (if ,regname
-			   (reg-format (register ,space ,regname))
-			   (if-let ((formats (formats-with-bytenames ,space (ensure-list ,bytenames))))
-			     (first formats) ; Bytenames were collated to be equivalent, so ambiguity is harmless.
-			     (error 'bitfields-divergent-in-space :bitfields ,bytenames :space ,space))))
+              (,format (if ,regname
+                           (reg-format (register ,space ,regname))
+                           (if-let ((formats (formats-with-bytenames ,space (ensure-list ,bytenames))))
+                             (first formats) ; Bytenames were collated to be equivalent, so ambiguity is harmless.
+                             (error 'bitfields-divergent-in-space :bitfields ,bytenames :space ,space))))
               ,@(when fmtname `((,fmtname (name ,format))))
               ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
               ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames))))))
@@ -906,32 +906,32 @@
 (defmacro devbit-decode (device regname bytename)
   (decode-context (space-name space bitfield) regname `(,bytename)
     `(bitfield-decode (load-time-value (bitfield (space ',space-name) ,bytename))
-		      (device-register ,device (load-time-value (register-id ,regname))))))
+                      (device-register ,device (load-time-value (register-id ,regname))))))
 
 (defmacro devreg-decode (device regname)
   (decode-context (space-name space bitfield fmtname) regname ()
     `(format-decode (load-time-value (format ,fmtname))
-		    (device-register ,device (load-time-value (register-id ,regname))))))
+                    (device-register ,device (load-time-value (register-id ,regname))))))
 
 (defmacro devbit (device regname bytename)
   (decode-context (space-name space) regname `(,bytename)
     `(ldb-test ',(bitfield-byte space bytename)
-	       (device-register ,device (load-time-value (register-id ,regname))))))
+               (device-register ,device (load-time-value (register-id ,regname))))))
   
 (defmacro devbit-value (device regname bytename)
   (decode-context (space-name space) regname `(,bytename)
     `(ldb ',(bitfield-byte space bytename)
-	  (device-register ,device (load-time-value (register-id ,regname))))))
+          (device-register ,device (load-time-value (register-id ,regname))))))
 
 (define-setc-expander devbit (value device regname bytename &key write-only)
   (decode-context (space-name space bitfield) regname `(,bytename)
     (let ((mask (byte-bitmask (bitfield-spec bitfield))))
       `(setf (device-register ,device (load-time-value (register-id ,regname)))
-	     ,(eeval
-	       `(logior ,value ,(unless write-only
+             ,(eeval
+               `(logior ,value ,(unless write-only
                                   `(device-register ,device (register-id ,regname))))
-	       `(,mask ,(lognot mask))
-	       `(,(mkenv space-name (name bitfield)) nil))))))
+               `(,mask ,(lognot mask))
+               `(,(mkenv space-name (name bitfield)) nil))))))
 
 (defmacro devbits (device regname (&rest bytenames))
   (decode-context (space-name space bitfield) regname bytenames
@@ -945,23 +945,23 @@
     (with-gensyms (device-var reg-id-var) 
       (let* ((initial (unless write-only
                         `(device-register ,device-var ,reg-id-var)))
-	     (bytes (mapcar [bitfield-byte space] bytenames)))
-	`(let ((,device-var ,device)
-	       (,reg-id-var (load-time-value (register-id ,regname))))
-	   (setf (device-register ,device-var ,reg-id-var)
-		 ,(eeval (list* 'logior initial (ensure-destructurisation bytenames values))
-			 (list* (lognot (bytes-bitmask bytes)) (mapcar #'byte-bitmask bytes))
-			 (list* nil (mapcar [mkenv space-name] bytenames)))))))))
+             (bytes (mapcar [bitfield-byte space] bytenames)))
+        `(let ((,device-var ,device)
+               (,reg-id-var (load-time-value (register-id ,regname))))
+           (setf (device-register ,device-var ,reg-id-var)
+                 ,(eeval (list* 'logior initial (ensure-destructurisation bytenames values))
+                         (list* (lognot (bytes-bitmask bytes)) (mapcar #'byte-bitmask bytes))
+                         (list* nil (mapcar [mkenv space-name] bytenames)))))))))
 
 (defmacro bits (bytenames &rest bytevals)
   "Combined bytevals of bitfields specified by BYTENAMES/BYTEVALS.
   Bytevals default to T, when left completely unspecified."
   (decode-context (space-name space) nil bytenames
     (let* ((bytenames (ensure-list bytenames))
-	   (bytevals (or bytevals (make-list (length bytenames) :initial-element t))))
+           (bytevals (or bytevals (make-list (length bytenames) :initial-element t))))
       (eeval (list* 'logior bytevals)
-	     (mapcar {#'byte-bitmask [bitfield-byte space]} bytenames)
-	     (mapcar [mkenv space-name] bytenames)))))
+             (mapcar {#'byte-bitmask [bitfield-byte space]} bytenames)
+             (mapcar [mkenv space-name] bytenames)))))
 
 (defmacro test-devbits (device regname bytenames &rest bytevals)
   "Check if every bitfield among those specified by BYTENAMES is set to a value denoted by
@@ -969,8 +969,8 @@
   (decode-context (space-name space bitfield) nil bytenames
     (let ((bytenames (ensure-list bytenames)))
       `(= (logand (device-register ,device (load-time-value (register-id ,regname)))
-		  ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
-	  (bits ,bytenames ,@bytevals)))))
+                  ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
+          (bits ,bytenames ,@bytevals)))))
 
 (defmacro test-bits (&environment env (&rest bytenames) val)
   "Check if every bitfield specified by BYTENAMES is set to all 1's."
