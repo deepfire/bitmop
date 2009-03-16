@@ -691,13 +691,14 @@
 	  (dolist (space (list* space (mapcar #'space (space-referrers space))))
 	    (setf (bitfield space name) bitfield
 		  (bitfield-byte space name) byte)))
-      (push (or incumbent bitfield) (format-bitfields format)))))
+      (lret ((elected-bitfield (or incumbent bitfield)))
+	(push format (bitfield-formats% elected-bitfield))))))
 
 ;; an ability to pluck in a QUOTE would've been very nice...
 (defun define-register-format-notype (space name documentation bitspecs)
   (let ((format (make-format :name name :documentation documentation :space space)))
-    (mapc [apply [ensure-bitfield format]] bitspecs)
-    (setf (format name) format)))
+    (setf (format-bitfields format) (mapcar [apply [ensure-bitfield format]] bitspecs)
+	  (format name) format)))
 
 (defmacro define-register-format (&environment env name doc &rest bitspecs)
   `(eval-when (:compile-toplevel :load-toplevel)
