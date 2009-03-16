@@ -819,7 +819,7 @@
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
   (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
          (let* ((val (ldb (bitfield-spec bitfield) value)))
-           (if-let ((field (byterevval bitfield val)))
+           (if-let ((field (byterevval bitfield val :if-does-not-exist :continue)))
                    (name field)
                    (if symbolise-unknowns
                        (format-symbol :keyword "UNKNOWN-VALUE-~B" val)
