@@ -597,11 +597,11 @@
 
 (define-condition bit-notation-error (error) ())
 
-(define-reported-condition underspecified-context (bit-notation-no-space-context-error)
+(define-reported-condition underspecified-context (bit-notation-error)
   ()
   (:report () "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
 
-(define-reported-condition bitfields-divergent-in-space (bit-notation-no-space-context-error)
+(define-reported-condition bitfields-divergent-in-space (bit-notation-error)
   ((bitfields :initarg :bitfields)
    (space :initarg :space))
   (:report (bitfields space) "~@<Unable to find a common format for bitfields ~{ ~A~} in space ~S~:@>" bitfields space))
