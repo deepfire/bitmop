@@ -290,7 +290,8 @@
   (print-device-object device stream))
 
 (defclass slave-device (device)
-  ((master :accessor slave-device-master :initarg :master)))
+  ((master :accessor slave-device-master :initarg :master))
+  (:metaclass device-class))
 
 (defclass extended-register-device (device)
   ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
