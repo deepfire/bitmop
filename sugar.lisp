@@ -29,3 +29,32 @@
        (setc (devbits ,device ,register ,bits) ,values)
        (unwind-protect (progn ,@body)
          (setc (devbits ,device ,register ,bits) ,(mapcar #'not values))))))
+
+(defun iolog-wrap-reader (stream space reader register-id)
+  (lambda (device selector)
+    (lret ((ret (funcall reader device selector)))
+      (common-lisp:format stream "~&~T~A -> ~X~%" (name (register-by-id space register-id)) ret))))
+
+(defun iolog-wrap-writer (stream space writer register-id)
+  (lambda (value device selector)
+    (common-lisp:format stream "~&~X -> ~A~%" value (name (register-by-id space register-id)))
+    (funcall writer value device selector)))
+
+(defun iolog-wrap-device-accessors (stream device)
+  (let ((orig-readers (device-readers device))
+        (orig-writers (device-writers device))
+        (space (device-class-space (class-of-device device))))
+    (let ((iologging-readers (map '(vector function) (curry #'iolog-wrap-reader stream space) orig-readers (iota (length orig-readers))))
+          (iologging-writers (map '(vector function) (curry #'iolog-wrap-writer stream space) orig-writers (iota (length orig-writers)))))
+      (setf (device-readers device) iologging-readers
+            (device-writers device) iologging-writers))
+    (values orig-readers orig-writers)))
+
+(defmacro with-logged-device-io ((device stream) &body body)
+  "Execute BODY with all register access of DEVICE-CLASS logged to STREAM."
+  (with-gensyms (orig-readers orig-writers)
+    (once-only (device)
+      `(multiple-value-bind (,orig-readers ,orig-writers) (iolog-wrap-device-accessors ,stream ,device)
+         (unwind-protect (progn ,@body)
+           (setf (device-readers ,device) ,orig-readers
+                 (device-writers ,device) ,orig-writers))))))

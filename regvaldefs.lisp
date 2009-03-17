@@ -120,7 +120,7 @@
 (deftype device-class-umbrella () `(or device-class struct-device-class))
 
 (define-container-hash-accessor *spaces* space :if-exists :continue)
-(define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :iterator do-device-classes)
+(define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes)
 (define-container-hash-accessor *register-formats* format :type format :if-exists :continue)
 (define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error :description "register")
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)

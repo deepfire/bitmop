@@ -27,7 +27,7 @@
    #:test-devbits #:test-bits #:format-decode
    #:byteval #:byterevval
    ;; device metaclasses
-   #:device-class #:device-class-p #:define-protocol-device-class #:define-device-class #:define-device-subclass
+   #:device-class #:device-class-p #:coerce-to-device-class #:define-protocol-device-class #:define-device-class #:define-device-subclass
    #:device-class-space #:device-class-instances #:reinitialize-device-class
    #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
    #:extended-register-device-class #:device-class-extensions
@@ -43,4 +43,4 @@
    ;; user API
    #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
    ;; sugar.lisp
-   #:with-device-bits-toggled))
+   #:with-device-bits-toggled #:with-logged-device-io))
