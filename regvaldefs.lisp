@@ -247,6 +247,17 @@
       (instances :accessor instances :type list :initarg :instances :initform nil :allocation :class))
      ,@options))
 
+;; McCLIM-like protocol class stuff :-)
+(defmacro define-protocol-device-class (name space provided-superclasses slots &rest options)
+  `(progn
+     (define-device-class ,name ,space (,@provided-superclasses)
+       (,@slots)
+       ,@options)
+     (let ((the-class (find-class ',name)))
+       (defmethod initialize-instance :after ((o ,name) &key &allow-other-keys)
+         (when (eq (class-of o) the-class)
+           (error 'protocol-class-instantiation :class o))))))
+
 (defmethod validate-superclass ((class device-class) (superclass standard-class)) t)
 
 (defmethod validate-superclass ((class extended-register-device-class) (superclass device-class)) t)
@@ -619,6 +630,10 @@
   (clrhash *register-instances-by-id*))
 
 (define-condition bit-notation-error (error) ())
+
+(define-reported-condition protocol-class-instantiation (bit-notation-error)
+  ((class :initarg :class))
+  (:report (class) "~@<Protocol device class ~S is not meaned to be directly instantiated.~:@>" class))
 
 (define-reported-condition underspecified-context (bit-notation-error)
   ()

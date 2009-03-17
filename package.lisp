@@ -10,7 +10,7 @@
    #:space-device #:space-remove-device
    #:name ;; this wants to go elsewhere.
    ;; conditions
-   #:bit-notation-error #:underspecified-context #:bitfields-divergent-in-space #:namespace-unification-conflict
+   #:bit-notation-error #:protocol-class-instantiation #:underspecified-context #:bitfields-divergent-in-space #:namespace-unification-conflict
    #:invalid-register-selectors-in-layout-definition #:incompatible-bitfield-redefinition #:device-class-definition-error
    #:spaceless-layout-reference #:cross-space-inheritance #:device-type-not-directly-instantiable #:conflicting-bitfield-names
    #:invalid-register-access #:invalid-register-read #:invalid-register-write
@@ -26,7 +26,8 @@
    #:test-devbits #:test-bits #:format-decode
    #:byteval #:byterevval
    ;; device metaclasses
-   #:device-class #:device-class-p #:define-device-class #:define-device-subclass #:device-class-space #:device-class-instances #:reinitialize-device-class
+   #:device-class #:device-class-p #:define-protocol-device-class #:define-device-class #:define-device-subclass
+   #:device-class-space #:device-class-instances #:reinitialize-device-class
    #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
    #:extended-register-device-class #:device-class-extensions
    #:struct-device-class #:define-struct-device-class
