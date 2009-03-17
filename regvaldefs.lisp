@@ -77,6 +77,11 @@
   registers
   register-selectors)
 
+(defmethod print-object ((o layout) stream)
+  (print-unreadable-object (o stream)
+    (common-lisp:format stream "~@<LAYOUT~; ~A~:[~; multiply-instantiable~] registers:~{ ~A~}~:@>"
+                        (name o) (layout-multi-p o) (mapcar #'name (layout-registers o)))))
+
 (defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
   aliases
