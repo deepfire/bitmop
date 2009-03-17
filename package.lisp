@@ -19,6 +19,7 @@
    ;; register stuff
    #:register #:reg-format #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-register #:reginstance-bank #:reginstance-value #:set-reginstance-value
+   #:register-id-valid-for-device-class-p #:register-name-valid-for-device-class-p
    ;; register introspection, SLOW
    #:register-id #:register-by-id #:register-selector
    ;; bitfield, format, byteval

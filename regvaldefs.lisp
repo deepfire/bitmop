@@ -199,6 +199,14 @@
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
 
+(defun register-id-valid-for-device-class-p (device-class id)
+  (or (not (eq (device-class-reader device-class id) #'invalid-register-access-read-trap))
+      (not (eq (device-class-writer device-class id) #'invalid-register-access-write-trap))))
+
+(defun register-name-valid-for-device-class-p (device-class register-name)
+  (let* ((space (device-class-space device-class)))
+    (register-id-valid-for-device-class-p device-class (symbol-id (register-dictionary space) register-name))))
+
 (defun device-class-p (class &aux (type (class-name class)))
   (and (subtypep type 'device) (not (member type '(device extended-register-device)))))
 
