@@ -312,6 +312,9 @@
   (declare (device device) (fixnum id))
   (aref (device-selectors device) id))
 
+(defun class-current-slot-allocation (class slot)
+  (length (slot-value class slot)))
+
 (defgeneric class-reallocation-effective-requirement (class new-requirement slot)
   (:documentation "Determine, with regards to CLASS's map SLOT, 
                    whether CLASS needs a new pool, an extended pool,
@@ -319,10 +322,10 @@
                    NEW-REQUIREMENT for SLOT.")
   (:method ((o struct-device-class) required-length slot-name)
     (cond ((member (slot-value o slot-name) (list *dummy-fixnum-vector* *dummy-function-vector*)) :new)
-          ((> required-length (length (slot-value o slot-name))) :extend)))
+          ((> required-length (class-current-slot-allocation o slot-name)) :extend)))
   (:method ((o device-class) required-length slot-name)
     (cond ((not (slot-boundp o slot-name)) :new)
-          ((> required-length (length (slot-value o slot-name))) :extend))))
+          ((> required-length (class-current-slot-allocation o slot-name)) :extend))))
 
 (defun ensure-device-class-map-storage (device-class space)
   "Ensure that map storage of DEVICE-CLASS is enough to cover all registers 
@@ -333,14 +336,21 @@
              (make-array required-length :element-type type :initial-element initial-element))
            (extend-pool (old-pool initial-element)
              (concatenate (list 'vector (array-element-type old-pool))
-                          old-pool (make-list (- required-length (length old-pool)) :initial-element initial-element))))
-      (iter (for (slot-name type initial) in `((selectors fixnum 0)
+                          old-pool (make-list (- required-length (length old-pool)) :initial-element initial-element)))
+           (iota-pool (pool n &optional (start 0))
+             (setf (subseq pool start) (iota n :start (- start) :step -1))))
+      (iter (for (slot-name type initial) in `((selectors fixnum :rev-iota)
                                                (readers function ,#'invalid-register-access-read-trap)
                                                (writers function ,#'invalid-register-access-write-trap)))
             (setf (slot-value device-class slot-name)
                   (case (class-reallocation-effective-requirement device-class required-length slot-name)
-                    (:new (new-pool type initial))
-                    (:extend (extend-pool (slot-value device-class slot-name) initial))
+                    (:new (lret ((pool (new-pool type (if (eq initial :rev-iota) 0 initial))))
+                            (when (eq initial :rev-iota)
+                              (iota-pool pool required-length))))
+                    (:extend (lret ((old-allocation (class-current-slot-allocation device-class slot-name))
+                                    (pool (extend-pool (slot-value device-class slot-name) (if (eq initial :rev-iota) 0 initial))))
+                               (when (eq initial :rev-iota)
+                                 (iota-pool pool (- required-length old-allocation) old-allocation))))
                     (t (slot-value device-class slot-name))))))))
 
 (defun f-2 (l x) (declare (ignore l)) x)
@@ -670,11 +680,16 @@
    (selector :initarg :selector)))
 
 (define-reported-condition invalid-register-read (invalid-register-access)
-  () (:report (device selector) "~@<Invalid register read for device ~S, selector 0x~X.~:@>" device selector))
+  ()
+  (:report (device selector)
+           "~@<Invalid register read for device ~S, selector 0x~X, register ~S.~:@>"
+           device (- selector) (register-by-id (device-class-space (class-of-device device)) (- selector))))
 
 (define-reported-condition invalid-register-write (invalid-register-access)
   ((value :initarg :value))
-  (:report (value device selector) "~@<Invalid register write of ~8,'0X for device ~S, selector 0x~X.~:@>" value device selector))
+  (:report (value device selector)
+           "~@<Invalid register write of ~8,'0X for device ~S, selector 0x~X, register ~S.~:@>"
+           value device (- selector) (register-by-id (device-class-space (class-of-device device)) (- selector))))
 
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
