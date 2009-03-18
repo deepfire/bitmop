@@ -362,7 +362,7 @@
              (concatenate (list 'vector (array-element-type old-pool))
                           old-pool (make-list (- required-length (length old-pool)) :initial-element initial-element)))
            (iota-pool (pool n &optional (start 0))
-             (setf (subseq pool start) (iota n :start (- start) :step -1))))
+             (setf (subseq pool start) (iota n :start (- -1 start) :step -1))))
       (iter (for (slot-name type initial) in `((selectors fixnum :rev-iota)
                                                (readers function ,#'invalid-register-access-read-trap)
                                                (writers function ,#'invalid-register-access-write-trap)))
@@ -711,13 +711,13 @@
   ()
   (:report (device selector)
            "~@<Invalid register read for device ~S, selector 0x~X, register ~S.~:@>"
-           device (- selector) (register-by-id (device-class-space (class-of-device device)) (- selector))))
+           device (- selector) (register-by-id (device-class-space (class-of-device device)) (- -1 selector))))
 
 (define-reported-condition invalid-register-write (invalid-register-access)
   ((value :initarg :value))
   (:report (value device selector)
            "~@<Invalid register write of ~8,'0X for device ~S, selector 0x~X, register ~S.~:@>"
-           value device (- selector) (register-by-id (device-class-space (class-of-device device)) (- selector))))
+           value device (- selector) (register-by-id (device-class-space (class-of-device device)) (- -1 selector))))
 
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
