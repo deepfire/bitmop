@@ -467,11 +467,11 @@
           (error 'cross-space-inheritance
                  :class (class-name device-class) :required-space (space-name space) :actual-spaces (mapcar #'space-name misspaced)))
         (multiple-value-bind (inherited-layout-instances inherited-layout-specs) (compute-inherited-layouts direct-layout-instances eligible-parents)
-          ;; fill in the basics and register self
-          (setf (device-class-layouts device-class) (append inherited-layout-instances direct-layout-instances)
-                (device-class-effective-layout-specs device-class) (append inherited-layout-specs direct-layout-specs)
+          ;; compute effective layouts specs, effective layouts and register device class
+          (setf (device-class-effective-layout-specs device-class) (append inherited-layout-specs direct-layout-specs)
+                (device-class-layouts device-class) (append inherited-layout-instances direct-layout-instances)
                 (device-class (class-name device-class)) device-class)
-          ;; allocate storage
+          ;; allocate selector/reader/writer map storage
           (ensure-device-class-map-storage device-class (setf (device-class-space device-class) space))
           ;; compute and patch selector/reader/writer maps
           (with-slots (selectors readers writers) device-class
