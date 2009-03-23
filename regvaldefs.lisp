@@ -117,8 +117,6 @@
 (defvar *register-instances* (make-hash-table :test #'eq))
 (defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
-(deftype device-class-umbrella () `(or device-class struct-device-class))
-
 (define-container-hash-accessor *spaces* space :if-exists :continue)
 (define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes)
 (define-container-hash-accessor *register-formats* format :type format :if-exists :continue)
@@ -179,6 +177,8 @@
    (layouts :accessor device-class-layouts :type list)
    (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initform nil :initarg :layouts :documentation "Original layout->accessors alist.")
    (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist.")))
+
+(deftype device-class-umbrella () `(or device-class struct-device-class))
 
 (defmethod device-class-space ((o struct-device-class)) (struct-device-class-space o))
 (defmethod device-class-instances ((o struct-device-class)) (struct-device-class-instances o))
