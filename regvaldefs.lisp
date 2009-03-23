@@ -498,8 +498,7 @@
 (defun device-class-corresponds-to-space-and-layouts-p (device-class space-name layout-specs)
   (when-let ((present-space (device-class-space device-class)))
     (and (eq present-space (when space-name (space space-name)))
-         (equal (device-class-direct-layout-specs device-class) layout-specs)
-         (every #'eq (device-class-layouts device-class) (mapcar (curry #'layout present-space) (mapcar #'car layout-specs))))))
+         (equal (device-class-direct-layout-specs device-class) layout-specs))))
 
 (defun maybe-reinitialize-device-class (device-class space-name direct-layout-specs)
   "Reinitialize an already defined DEVICE-CLASS according to SPACE-NAME and 
