@@ -252,7 +252,8 @@
          (:metaclass ,metaclass)
          (:space . ,space)
          ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)) ;; YYY: REMOVE-FROM-ALIST
-       (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options))))))
+       (eval-when (:load-toplevel)
+         (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options)))))))
 
 (defmacro define-device-class (name space provided-superclasses slots &rest options)
   `(define-device-subclass ,name ,space (,@provided-superclasses)
