@@ -529,7 +529,7 @@
                                       (for layout = (layout space layout-name))
                                       (iter (for register in (layout-registers layout))
                                             (for selector in (layout-register-selectors layout))
-                                            (in outer (collect (cons selector (map 'vector #'identity (cons register (reg-ext register))))))))))
+                                            (in outer (collect (cons selector (map 'vector #'identity (cons register (or (reg-ext register) (list nil)))))))))))
       (unless (= (length (remove-duplicates candidate-extensions :key #'car))
                  (length candidate-extensions))
         (error "~@<Cannot build a register extension map for intersecting layouts: ~S~:@>" layout-names))
