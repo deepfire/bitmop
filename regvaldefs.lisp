@@ -212,6 +212,9 @@
   (let* ((space (device-class-space device-class)))
     (register-id-valid-for-device-class-p device-class (symbol-id (register-dictionary space) register-name))))
 
+(defun device-class-not-protocol-p (class)
+  (not (member (class-name class) '(device extended-register-device))))
+
 (defun device-class-p (class &aux (type (class-name class)))
   (and (subtypep type 'device) (not (member type '(device extended-register-device)))))
 
@@ -545,7 +548,7 @@
   (apply #'shared-initialize o nil (remove-from-plist initargs :extended-layouts)))
 
 (defmethod initialize-instance :after ((o extended-register-device-class) &key extended-layouts &allow-other-keys)
-  (when (device-class-p o)
+  (when (device-class-not-protocol-p o)
     (when-let ((missing (remove-if (rcurry #'assoc (device-class-effective-layout-specs o)) extended-layouts)))
       (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
              (class-name o) missing))
