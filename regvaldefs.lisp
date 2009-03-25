@@ -186,7 +186,7 @@
 (defmethod device-class-effective-layout-specs ((o struct-device-class)) (struct-device-class-effective-layout-specs o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
 
 (defclass extended-register-device-class (device-class)
-  ((extensions :accessor device-class-extensions :type (vector vector) :documentation "Selector-indexed storage for extended register information.")))
+  ((extensions :accessor device-class-extensions :type (vector simple-array) :documentation "Selector-indexed storage for extended register information.")))
 
 (defun invalid-register-access-read-trap (device selector)
   (error 'invalid-register-read :device device :selector selector))
@@ -332,7 +332,7 @@
   (:metaclass device-class))
 
 (defclass extended-register-device (device)
-  ((extensions :accessor device-extensions :type (vector vector) :allocation :class)) ; copied over from class
+  ((extensions :accessor device-extensions :type (vector simple-array) :allocation :class)) ; copied over from class
   (:metaclass extended-register-device-class))
 
 (declaim (ftype (function (device fixnum) fixnum) device-register-selector))
@@ -523,21 +523,23 @@
 (defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
   (initialize-device-class o (when space (space space)) layouts))
 
-(defun build-device-class-extension-map (space layout-names)
-  (lret* ((dictionary (register-dictionary space))
-          (length (length (dictionary-id-map dictionary)))
-          (extension-map (make-array length :element-type 'vector :initial-element #())))
-    (let ((candidate-extensions (iter outer
-                                      (for layout-name in layout-names)
-                                      (for layout = (layout space layout-name))
-                                      (iter (for register in (layout-registers layout))
-                                            (for selector in (layout-register-selectors layout))
-                                            (in outer (collect (cons selector (map 'vector #'identity (cons register (or (reg-ext register) (list nil)))))))))))
-      (unless (= (length (remove-duplicates candidate-extensions :key #'car))
-                 (length candidate-extensions))
-        (error "~@<Cannot build a register extension map for intersecting layouts: ~S~:@>" layout-names))
-      (iter (for (selector . extension) in candidate-extensions)
-            (setf (aref extension-map selector) extension)))))
+(defun build-device-class-extension-map (space layout-names &aux (length 0))
+  (let ((candidate-extensions
+         (iter outer
+               (for layout-name in layout-names)
+               (for layout = (layout space layout-name))
+               (iter (for register in (layout-registers layout))
+                     (for selector in (layout-register-selectors layout))
+                                           
+                     (maxf length (1+ selector))
+                     (in outer (collect (cons selector (map 'vector #'identity
+                                                            (cons register (or (ensure-list (reg-ext register)) (list nil)))))))))))
+    (unless (= (length (remove-duplicates candidate-extensions :key #'car))
+               (length candidate-extensions))
+      (error "~@<Cannot build a register extension map for intersecting layouts: ~S~:@>" layout-names))
+    (lret ((extension-map (coerce (make-array length :initial-element (make-array 1 :initial-element nil)) 'vector)))
+          (iter (for (selector . extension) in candidate-extensions)
+                (setf (aref extension-map selector) extension)))))
 
 ;;;
 ;;; XXX: not pretty: hack around non-&allow-other-keys-able initargs...
