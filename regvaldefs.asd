@@ -6,7 +6,7 @@
 (in-package :regvaldefs.system)
 
 (defsystem :regvaldefs
-  :depends-on (:alexandria :iterate :pergamum
+  :depends-on (:alexandria :iterate :reloadable :pergamum
                :semi-precious) ;; for dictionaries and early-eval
   :components
   ((:file "setc")

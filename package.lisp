@@ -1,6 +1,6 @@
 (defpackage regvaldefs
   (:nicknames :rvd) 
-  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval :dictionary #+sbcl :sb-mop #+ecl :clos)
+  (:use :common-lisp :alexandria :reloadable :pergamum :iterate :setc :early-eval :dictionary #+sbcl :sb-mop #+ecl :clos)
   (:shadow #:space #:format #:documentation)
   (:export
    ;; knobs
@@ -44,3 +44,8 @@
    #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
    ;; sugar.lisp
    #:with-device-bits-toggled #:with-logged-device-io))
+
+(in-package :regvaldefs)
+
+(define-reloadable :regvaldefs asdf-reloadable (:pergamum :semi-precious)
+  (:packages :setc :regvaldefs))
