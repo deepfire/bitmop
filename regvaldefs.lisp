@@ -244,7 +244,8 @@
     ;; (cl:format t "D-D-C ~S: defaults: metaclass: ~S, superclass: ~S;  provided: metaclass: ~S, superclasses: ~S;  final: metaclass: ~S, superclasses: ~S~%"
     ;;            name default-metaclass default-superclass provided-metaclass provided-superclasses metaclass superclasses)
     ;; (finish-output)
-    `(progn
+    `(let (*device-class-init-space* *device-class-init-layouts*)
+       (declare (special *device-class-init-space* *device-class-init-layouts*))
        (defclass ,name ,(compute-superclasses provided-metaclass provided-superclasses)
          (,@slots
           (selectors :allocation :class)
@@ -255,8 +256,9 @@
          (:metaclass ,metaclass)
          (:space . ,space)
          ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)) ;; YYY: REMOVE-FROM-ALIST
-       (eval-when (:load-toplevel)
-         (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options)))))))
+       (when *device-class-init-layouts* ; space could legally be NIL
+           (initialize-device-class (find-class ',name) (space *device-class-init-space*) *device-class-init-layouts*))
+         (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options))))))
 
 (defmacro define-device-class (name space provided-superclasses slots &rest options)
   `(define-device-subclass ,name ,space (,@provided-superclasses)
@@ -521,7 +523,8 @@
   (apply #'shared-initialize o nil (remove-from-plist initargs :space)))
 
 (defmethod initialize-instance :after ((o device-class) &key space layouts &allow-other-keys)
-  (initialize-device-class o (when space (space space)) layouts))
+  (declare (special *device-class-init-space* *device-class-init-layouts*))
+  (setf (values *device-class-init-space* *device-class-init-layouts*) (values space layouts)))
 
 (defun build-device-class-extension-map (space layout-names &aux (length 0))
   (let ((candidate-extensions
