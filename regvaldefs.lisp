@@ -502,9 +502,11 @@
   (initialize-device-class device-class (device-class-space device-class) (device-class-direct-layout-specs device-class)))
 
 (defun device-class-corresponds-to-space-and-layouts-p (device-class space-name layout-specs)
-  (when-let ((present-space (device-class-space device-class)))
+  (when-let ((present-space (if (typep device-class 'struct-device-class)
+                                (device-class-space device-class)
+                                (slot-value* device-class 'space nil))))
     (and (eq present-space (when space-name (space space-name)))
-         (equal (device-class-direct-layout-specs device-class) layout-specs))))
+         (equal (slot-value* device-class 'direct-layout-specs nil) layout-specs))))
 
 (defun maybe-reinitialize-device-class (device-class space-name direct-layout-specs)
   "Reinitialize an already defined DEVICE-CLASS according to SPACE-NAME and 
