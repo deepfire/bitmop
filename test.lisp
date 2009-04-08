@@ -80,6 +80,17 @@
             (:moobar-r testreg nil)
             (:moobar-w nil (setf testreg))))
 
+(define-device-class void nil () ())
+
+(defmethod print-object ((o void) stream)
+  (format stream "~@<#<~;~A~;>~:@>" (type-of o)))
+
+(flet ((foo (x) (1+ (* -1 x))))
+  (declare (ignore foo))
+  (define-device-class non-toplevel-void nil (void) ())
+  (defmethod print-object ((o non-toplevel-void) stream)
+    (format stream "~@<#<~;~A~;>~:@>" (type-of o))))
+
 (set-namespace :foo :moobar)
 
 (deftest pure-evaluation base-bit-expression-test () (foo)
