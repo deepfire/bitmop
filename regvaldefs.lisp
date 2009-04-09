@@ -244,9 +244,6 @@
   (let* ((provided-metaclass (second (assoc :metaclass options)))
          (metaclass (compute-metaclass provided-metaclass provided-superclasses)))
     ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
-    ;; (cl:format t "D-D-C ~S: defaults: metaclass: ~S, superclass: ~S;  provided: metaclass: ~S, superclasses: ~S;  final: metaclass: ~S, superclasses: ~S~%"
-    ;;            name default-metaclass default-superclass provided-metaclass provided-superclasses metaclass superclasses)
-    ;; (finish-output)
     `(progn
        (defclass ,name ,(compute-superclasses provided-metaclass provided-superclasses)
          (,@slots
