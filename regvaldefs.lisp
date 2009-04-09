@@ -258,6 +258,9 @@
          (:metaclass ,metaclass)
          (:space . ,space)
          ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)) ;; YYY: REMOVE-FROM-ALIST
+       #+ecl
+       (eval-when (:compile-toplevel)
+         (finalize-inheritance (find-class ',name)))
        (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options))))))
 
 (defmacro define-device-class (name space provided-superclasses slots &rest options)
@@ -453,6 +456,9 @@
                 (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w nil)))))))))
   (:method ((o device-class) space direct-layout-specs)
     (declare (type (or null space) space) (type list direct-layout-specs))
+    #+ecl
+    (unless (class-finalized-p o)
+      (finalize-inheritance o))
     (if space
         (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs))
               (eligible-parents (remove-if-not (lambda (pc) (and (device-class-p pc) (device-class-space pc))) (class-direct-superclasses o))))
