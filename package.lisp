@@ -47,5 +47,5 @@
 
 (in-package :regvaldefs)
 
-(define-reloadable :regvaldefs asdf-reloadable (:pergamum :semi-precious)
-  (:packages :setc :regvaldefs))
+;; (define-reloadable :regvaldefs asdf-reloadable (:pergamum :semi-precious)
+;;   (:packages :setc :regvaldefs))
