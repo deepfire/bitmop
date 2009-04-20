@@ -1,6 +1,6 @@
 (defpackage regvaldefs
   (:nicknames :rvd) 
-  (:use :common-lisp :alexandria :reloadable :pergamum :iterate :setc :early-eval :dictionary #+sbcl :sb-mop #+ecl :clos)
+  (:use :common-lisp :alexandria :pergamum :iterate :setc :early-eval :dictionary #+sbcl :sb-mop #+ecl :clos)
   (:shadow #:space #:format #:documentation)
   (:export
    ;; knobs
