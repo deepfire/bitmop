@@ -28,7 +28,7 @@
    #:byteval #:byterevval
    ;; device metaclasses
    #:device-class #:device-class-p #:coerce-to-device-class #:define-protocol-device-class #:define-device-class #:define-device-subclass
-   #:device-class-space #:device-class-instances
+   #:device-class-space #:device-class-instances #:device-class-layouts
    #:device-class-register-selector #:device-class-reader #:set-device-class-reader #:device-class-writer #:set-device-class-writer
    #:extended-register-device-class #:device-class-extensions
    #:struct-device-class #:define-struct-device-class
