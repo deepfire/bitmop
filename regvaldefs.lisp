@@ -92,6 +92,7 @@
 (defstruct (register-instance (:include docunamed) (:conc-name reginstance-))
   "Instance of register."
   device
+  layout
   register
   selector
   reader writer
@@ -571,7 +572,7 @@
               (for selector in (layout-register-selectors layout))
               (let* ((name (device-register-instance-name device layout (name register)))
                      (id (1+ (hash-table-count *register-instances-by-id*)))
-                     (instance (make-register-instance :name name :register register :device device :selector selector :id id
+                     (instance (make-register-instance :name name :register register :device device :selector selector :id id :layout layout
                                                        :reader (compute-accessor-function reader-name t) :writer (compute-accessor-function writer-name nil))))
                 (setf (register-instance-by-id id) instance)
                 (iter (for riname in (cons name (mapcar (curry #'device-register-instance-name device layout)
