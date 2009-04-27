@@ -802,6 +802,12 @@
 ;;;;      ... survey
 ;;;
 (defmacro define-namespace (name &body f)
+  (iter (for (clause . nil) in f)
+        (unless (member clause '(:documentation :register-formats :layouts))
+          (error 'simple-space-definition-error
+                 :space name
+                 :format-control "~@<in: ~A: unknown clause ~S~:@>"
+                 :format-arguments (list 'define-namespace clause))))
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      ,(once-only (name)
         `(setf (space ,name) (make-instance 'space :name ,name :documentation ,(cadr (assoc :documentation f)))))
