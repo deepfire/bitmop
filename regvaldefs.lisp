@@ -637,37 +637,30 @@
 
 (define-condition bit-notation-error (error) ())
 
-(define-reported-condition protocol-class-instantiation (bit-notation-error)
-  ((class :initarg :class))
-  (:report (class) "~@<Protocol device class ~S is not meaned to be directly instantiated.~:@>" class))
+(define-condition definition-error (bit-notation-error) ())
 
-(define-reported-condition underspecified-context (bit-notation-error)
-  ()
-  (:report () "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
+(define-condition space-definition-error (definition-error)
+  ((space :initarg :space)))
 
-(define-reported-condition bitfields-divergent-in-space (bit-notation-error)
-  ((bitfields :initarg :bitfields)
-   (space :initarg :space))
+(define-condition simple-space-definition-error (space-definition-error simple-error)
+  ())
+
+(define-reported-condition bitfields-divergent (space-definition-error)
+  ((bitfields :initarg :bitfields))
   (:report (bitfields space) "~@<Unable to find a common format for bitfields ~{ ~A~} in space ~S~:@>" bitfields space))
 
-(define-reported-condition namespace-unification-conflict (bit-notation-error)
-  ((namespaces :initarg :namespaces)
-   (slot :initarg :slot)
-   (key :initarg :key))
-  (:report (namespaces slot key) "Conflict during namespace unification. Namespaces ~S, slot ~S, key ~S." namespaces slot key))
-
-(define-reported-condition invalid-register-selectors-in-layout-definition (bit-notation-error)
+(define-reported-condition invalid-register-selectors-in-layout-definition (space-definition-error)
   ((layout :initarg :layout)
    (bad-selectors :initarg :bad-selectors))
-  (:report (layout bad-selectors)
-           "~@<In definition of layout ~S: register selectors~{ ~A~} must be of type FIXNUM.~:@>" layout bad-selectors))
+  (:report (layout space bad-selectors)
+           "~@<In definition of layout ~S in space ~S: register selectors~{ ~A~} must be of type FIXNUM.~:@>" layout space bad-selectors))
 
-(define-reported-condition incompatible-bitfield-redefinition (bit-notation-error)
+(define-reported-condition incompatible-bitfield-redefinition (space-definition-error)
   ((bitfield :initarg :bitfield)
    (to :initarg :to))
-  (:report (bitfield to) "~@<Attempt to incompatibly redefine bitfield ~A to ~A.~:@>" bitfield to))
+  (:report (space bitfield to) "~@<In definition of space ~S: attempt to incompatibly redefine bitfield ~A to ~A.~:@>" space bitfield to))
 
-(define-condition device-class-definition-error (error)
+(define-condition device-class-definition-error (definition-error)
   ((class :initarg :class)))
 
 (define-reported-condition spaceless-layout-reference (device-class-definition-error)
@@ -681,6 +674,20 @@
   (:report (class required-space actual-spaces)
            "~@<During initialization of device class ~S: cannot do cross-space inheritance: ~S vs. ~S.~:@>"
            class required-space actual-spaces))
+
+(define-reported-condition protocol-class-instantiation (bit-notation-error)
+  ((class :initarg :class))
+  (:report (class) "~@<Protocol device class ~S is not meaned to be directly instantiated.~:@>" class))
+
+(define-reported-condition underspecified-context (bit-notation-error)
+  ()
+  (:report () "~@<Impossible to deduce context: neither register name, nor byte names were specified.~:@>"))
+
+(define-reported-condition namespace-unification-conflict (bit-notation-error)
+  ((namespaces :initarg :namespaces)
+   (slot :initarg :slot)
+   (key :initarg :key))
+  (:report (namespaces slot key) "Conflict during namespace unification. Namespaces ~S, slot ~S, key ~S." namespaces slot key))
 
 (define-reported-condition device-type-not-directly-instantiable (bit-notation-error)
   ((type :initarg :type))
@@ -744,7 +751,7 @@
     (let ((incumbent (bitfield space name :if-does-not-exist :continue)))
       (if incumbent 
           (unless (bitfields-equal-p bitfield incumbent)
-            (error 'incompatible-bitfield-redefinition :bitfield incumbent :to bitfield))
+            (error 'incompatible-bitfield-redefinition :space (space-name space) :bitfield incumbent :to bitfield))
           (dolist (space (list* space (mapcar #'space (space-referrers space))))
             (setf (bitfield space name) bitfield
                   (bitfield-byte space name) byte)))
@@ -776,7 +783,7 @@
 (defun ensure-layout (space name documentation register-specs multi-p &optional (name-format (if multi-p "~A~D.~A" "~2*~A")))
   (let ((selectors (mapcar #'second register-specs)))
     (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
-      (error 'invalid-register-selectors-in-layout-definition :layout name :bad-selectors bad-selectors))
+      (error 'invalid-register-selectors-in-layout-definition :space (space-name space) :layout name :bad-selectors bad-selectors))
     (lret ((layout (make-layout :name name :space space :documentation documentation
                                 :register-selectors selectors :multi-p multi-p :name-format name-format)))
       (setf (layout space name) layout
