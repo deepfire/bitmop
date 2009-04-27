@@ -791,9 +791,8 @@
                                             (collect (apply #'define-register layout name rest)))))))
 
 (defmacro define-layout (&environment env (name doc &key multi-p name-format) &rest defs)
-  (let ((reginstance-name-format (or name-format (when multi-p "~A~D"))))
-    `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,multi-p
-                    ,@(when name-format `(,name-format)))))
+  `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,multi-p
+                  ,@(when name-format `(,name-format))))
 
 ;;;
 ;;;  o  layout templates
