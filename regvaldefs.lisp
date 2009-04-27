@@ -122,8 +122,9 @@
 (define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes)
 (define-container-hash-accessor *register-formats* format :type format :if-exists :continue)
 (define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error :description "register")
-(define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error)
-(define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :if-exists :error)
+(define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error
+                                :iterator do-register-instances :remover remove-register-instance)
+(define-container-hash-accessor *register-instances-by-id* register-instance-by-id :type register-instance :type-allow-nil-p t :if-exists :continue)
 (define-container-hash-accessor :i device :container-transform devices :parametrize-container t)
 (define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t :if-exists :error)
 (define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t :if-exists :error)
@@ -564,21 +565,45 @@
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
   (format-symbol :keyword (layout-name-format layout) (device-type device) (device-id device) name))
 
-(defun create-device-register-instances (device &aux (device-class (class-of-device device)))
+(defmacro do-device-registers ((layout reader-name writer-name register selector) device
+                               &body body &aux (layout-var (or layout (gensym))))
+  "Execute BODY with LAYOUT, REGISTER, SELECTOR, READER-NAME and WRITER-NAME
+   bound to corresponding values for every register defined for DEVICE.
+
+   Any variable name can be specified as NIL, which is intepreted as a
+   request to ignore that binding."
+  (with-gensyms (class)
+    (once-only (device)
+     `(let* ((,class (class-of-device ,device)))
+        (iter (for ,layout in (device-class-layouts ,class))
+              ,@(when (or reader-name writer-name)
+                 `((for (nil ,reader-name ,writer-name) in (device-class-effective-layout-specs ,class))))
+              (iter ,@(when register `((for ,register in (layout-registers ,layout-var))))
+                    ,@(when selector `((for ,selector in (layout-register-selectors ,layout-var))))
+                    ,@body))))))
+
+(defun purge-device-register-instances (device)
+  "Purge all register instances associated with DEVICE."
+  (do-device-registers (layout nil nil register nil) device
+    (let* ((ri-name (device-register-instance-name device layout (name register)))
+           (ri (register-instance ri-name)))
+      (setf (register-instance-by-id (reginstance-id ri)) nil) ; Not REMHASH: that will screw up id allocation.
+      (mapc #'remove-register-instance (cons ri-name (mapcar (curry #'device-register-instance-name device layout)
+                                                             (reg-aliases register)))))))
+
+(defun create-device-register-instances (device)
   "Walk the DEVICE's layouts and spawn the broodlings."
-  (iter (for layout in (device-class-layouts device-class))
-        (for (nil reader-name writer-name) in (device-class-effective-layout-specs device-class))
-        (iter (for register in (layout-registers layout))
-              (for selector in (layout-register-selectors layout))
-              (let* ((name (device-register-instance-name device layout (name register)))
-                     (id (1+ (hash-table-count *register-instances-by-id*)))
-                     (instance (make-register-instance :name name :register register :device device :selector selector :id id :layout layout
-                                                       :reader (compute-accessor-function reader-name t) :writer (compute-accessor-function writer-name nil))))
-                (setf (register-instance-by-id id) instance)
-                (iter (for riname in (cons name (mapcar (curry #'device-register-instance-name device layout)
-                                                        (reg-aliases register))))
-                      (assert riname)
-                      (setf (register-instance riname) instance))))))
+  (do-device-registers (layout reader-name writer-name register selector) device
+    (let* ((name (device-register-instance-name device layout (name register)))
+           (id (1+ (hash-table-count *register-instances-by-id*)))
+           (instance (make-register-instance :name name :register register :device device :selector selector :id id :layout layout
+                                             :reader (compute-accessor-function reader-name t)
+                                             :writer (compute-accessor-function writer-name nil))))
+      (setf (register-instance-by-id id) instance)
+      (iter (for riname in (cons name (mapcar (curry #'device-register-instance-name device layout)
+                                              (reg-aliases register))))
+            (assert riname)
+            (setf (register-instance riname) instance)))))
 
 (defmethod initialize-instance :around ((device device) &key &allow-other-keys)
   (when *verbose-device-init-p*
