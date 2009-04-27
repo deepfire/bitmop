@@ -593,17 +593,21 @@
 
 (defun create-device-register-instances (device)
   "Walk the DEVICE's layouts and spawn the broodlings."
-  (do-device-registers (layout reader-name writer-name register selector) device
-    (let* ((name (device-register-instance-name device layout (name register)))
-           (id (1+ (hash-table-count *register-instances-by-id*)))
-           (instance (make-register-instance :name name :register register :device device :selector selector :id id :layout layout
-                                             :reader (compute-accessor-function reader-name t)
-                                             :writer (compute-accessor-function writer-name nil))))
-      (setf (register-instance-by-id id) instance)
-      (iter (for riname in (cons name (mapcar (curry #'device-register-instance-name device layout)
-                                              (reg-aliases register))))
-            (assert riname)
-            (setf (register-instance riname) instance)))))
+  (with-retry-restarts ((retry ()
+                          :test (lambda (c) (typep c 'bad-redefinition))
+                          :report "Purge device register instances and retry their creation."
+                          (purge-device-register-instances device)))
+    (do-device-registers (layout reader-name writer-name register selector) device
+      (let* ((main-ri-name (device-register-instance-name device layout (name register)))
+             (id (1+ (hash-table-count *register-instances-by-id*)))
+             (instance (make-register-instance :name main-ri-name :register register :device device :selector selector :id id :layout layout
+                                               :reader (compute-accessor-function reader-name t)
+                                               :writer (compute-accessor-function writer-name nil))))
+        (setf (register-instance-by-id id) instance)
+        (iter (for ri-name in (cons main-ri-name (mapcar (curry #'device-register-instance-name device layout)
+                                                (reg-aliases register))))
+              (assert ri-name)
+              (setf (register-instance ri-name) instance))))))
 
 (defmethod initialize-instance :around ((device device) &key &allow-other-keys)
   (when *verbose-device-init-p*
