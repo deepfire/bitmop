@@ -277,7 +277,7 @@
      (let ((the-class (find-class ',name)))
        (defmethod initialize-instance :after ((o ,name) &key &allow-other-keys)
          (when (eq (class-of o) the-class)
-           (error 'protocol-class-instantiation :class o))))))
+           (error 'protocol-class-instantiation :class (class-of o)))))))
 
 (defmethod validate-superclass ((class device-class) (superclass standard-class)) t)
 
