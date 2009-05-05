@@ -24,7 +24,7 @@
   (enable-curry-reader)
   (enable-compose-reader))
 
-(defvar *log-stream* *standard-output*)
+(defvar *log-stream* t)
 (defvar *verbose-device-init-p* t)
 
 (defclass space ()
