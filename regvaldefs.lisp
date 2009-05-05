@@ -265,7 +265,7 @@
        #+ecl
        (eval-when (:compile-toplevel)
          (finalize-inheritance (find-class ',name)))
-       (maybe-reinitialize-device-class (find-class ',name) ',space ',(rest (assoc :layouts options))))))
+       (initialize-device-class (find-class ',name) (when ',space (space ',space)) ',(rest (assoc :layouts options))))))
 
 (defmacro define-device-class (name space provided-superclasses slots &rest options)
   `(define-device-subclass ,name ,space (,@provided-superclasses)
