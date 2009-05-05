@@ -193,25 +193,30 @@
   ((extended-layouts :accessor device-class-extended-layouts :type list :initarg :extended-layouts)
    (extensions :accessor device-class-extensions :type (vector simple-array) :documentation "Selector-indexed storage for extended register information.")))
 
-(defun invalid-register-access-read-trap (device selector)
-  (error 'invalid-register-read :device device :selector selector))
+(defun make-invalid-register-access-read-trap (id)
+  (lambda (device selector)
+    (declare (ignore selector))
+    (error 'invalid-register-read :device device :id id)))
 
-(defun invalid-register-access-write-trap (value device selector)
-  (error 'invalid-register-write :value value :device device :selector selector))
+(defun make-invalid-register-access-write-trap (id)
+  (lambda (value device selector)
+    (declare (ignore selector))
+    (error 'invalid-register-write :value value :device device :id id)))
 
 (defmethod device-class-register-selector ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i))
 (defmethod device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i))
 (defmethod device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-writers o) i))
 (defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-readers o) i) fn))
 (defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-writers o) i) fn))
-(defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null)) (setf (aref (device-class-readers o) i) #'invalid-register-access-read-trap))
-(defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null)) (setf (aref (device-class-writers o) i) #'invalid-register-access-write-trap))
+(defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
+  (setf (aref (device-class-readers o) i) (make-invalid-register-access-read-trap i)))
+(defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
+  (setf (aref (device-class-writers o) i) (make-invalid-register-access-write-trap i)))
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
 
 (defun register-id-valid-for-device-class-p (device-class id)
-  (or (not (eq (device-class-reader device-class id) #'invalid-register-access-read-trap))
-      (not (eq (device-class-writer device-class id) #'invalid-register-access-write-trap))))
+  (not (minusp (device-class-register-selector device-class id))))
 
 (defun register-name-valid-for-device-class-p (device-class register-name)
   (let* ((space (device-class-space device-class)))
@@ -345,66 +350,67 @@
   (aref (device-selectors device) id))
 
 (defun class-current-slot-allocation (class slot)
-  (length (slot-value class slot)))
+  (if (slot-boundp class slot) (length (slot-value class slot)) 0))
 
-(defgeneric class-reallocation-effective-requirement (class new-requirement slot)
-  (:documentation "Determine, with regards to CLASS's map SLOT, 
-                   whether CLASS needs a new pool, an extended pool,
-                   or that its current pool allocation is enough to meet
-                   NEW-REQUIREMENT for SLOT.")
-  (:method ((o struct-device-class) required-length slot-name)
-    (cond ((member (slot-value o slot-name) (list *dummy-fixnum-vector* *dummy-function-vector*)) :new)
-          ((> required-length (class-current-slot-allocation o slot-name)) :extend)))
-  (:method ((o device-class) required-length slot-name)
-    (cond ((not (slot-boundp o slot-name)) :new)
-          ((> required-length (class-current-slot-allocation o slot-name)) :extend))))
+(defgeneric class-pool-boundp (class slot)
+  (:documentation "Determine, whether CLASS's SLOT is bound.
+                   SLOT must represent a map -- that is, either a selector,
+                   a reader or a writer map.")
+  (:method ((o struct-device-class) slot-name)
+    (not (member (slot-value o slot-name) (list *dummy-fixnum-vector* *dummy-function-vector*))))
+  (:method ((o device-class) slot-name)
+    (slot-boundp o slot-name)))
 
 (defun ensure-device-class-map-storage (device-class space)
   "Ensure that map storage of DEVICE-CLASS is enough to cover all registers 
    in SPACE."
   (declare (type (or struct-device-class device-class) device-class))
   (let ((required-length (length (dictionary-id-map (register-dictionary space)))))
-    (flet ((new-pool (type initial-element)
-             (make-array required-length :element-type type :initial-element initial-element))
-           (extend-pool (old-pool initial-element)
-             (concatenate (list 'vector (array-element-type old-pool))
-                          old-pool (make-list (- required-length (length old-pool)) :initial-element initial-element)))
-           (iota-pool (pool n &optional (start 0))
-             (setf (subseq pool start) (iota n :start (- -1 start) :step -1))))
-      (iter (for (slot-name type initial) in `((selectors fixnum :rev-iota)
-                                               (readers function ,#'invalid-register-access-read-trap)
-                                               (writers function ,#'invalid-register-access-write-trap)))
+    (flet ((make-or-extend-pool (type initial-element old-pool)
+             (concatenate (list 'vector type)
+                          (or old-pool (make-array required-length :element-type type :initial-element initial-element))
+                          (unless old-pool
+                            (make-list (- required-length (length old-pool)) :initial-element initial-element))))
+           (rev-iota (start n)
+             (iota n :start (- -1 start) :step -1))
+           (irart-iota (start n)
+             (mapcar #'make-invalid-register-access-read-trap (iota n :start start)))
+           (irawt-iota (start n)
+             (mapcar #'make-invalid-register-access-write-trap (iota n :start start)))
+           (initialise-pool-tail (pool start n initialiser)
+             (setf (subseq pool start) (funcall initialiser start n))))
+      (iter (for (slot-name type initialiser initial) in `((selectors fixnum ,#'rev-iota 0)
+                                                           (readers function ,#'irart-iota #'break)
+                                                           (writers function ,#'irawt-iota #'break)))
+            (for old-allocation = (class-current-slot-allocation device-class slot-name))
             (setf (slot-value device-class slot-name)
-                  (case (class-reallocation-effective-requirement device-class required-length slot-name)
-                    (:new (lret ((pool (new-pool type (if (eq initial :rev-iota) 0 initial))))
-                            (when (eq initial :rev-iota)
-                              (iota-pool pool required-length))))
-                    (:extend (lret ((old-allocation (class-current-slot-allocation device-class slot-name))
-                                    (pool (extend-pool (slot-value device-class slot-name) (if (eq initial :rev-iota) 0 initial))))
-                               (when (eq initial :rev-iota)
-                                 (iota-pool pool (- required-length old-allocation) old-allocation))))
-                    (t (slot-value device-class slot-name))))))))
+                  (cond ((zerop required-length) (make-array 0))
+                        ((>= old-allocation required-length) (slot-value device-class slot-name))
+                        (t (lret ((new-pool (make-or-extend-pool
+                                             type initial (if (class-pool-boundp device-class slot-name) (slot-value device-class slot-name) nil))))
+                                 (initialise-pool-tail new-pool old-allocation (- required-length old-allocation) initialiser)))))))))
 
-(defun f-2 (l x) (declare (ignore l)) x)
-(defun mk-f-const-or-2 (x const) (if x (constantly const) #'f-2))
 (defmacro y (lambda-list &body body)
   "Idiomatic, ignore-saving lambda macro."
   (iter (for var in lambda-list)
         (if var (collect var into binds)
             (let ((var (gensym))) (collect var into binds) (collect var into ignores)))
         (finally (return `(lambda (,@binds) (declare (ignore ,@ignores)) ,@body)))))
-(defun mk-f-1 (f) (y (l nil) (funcall f l)))
 (defun mk-f-cdrwalk (s &aux (r s)) (y (nil nil) (prog1 (car r) (setf r (cdr r)))))
 
 (defun mapc-layout-register-ids (fn layout &aux (dictionary (register-dictionary (layout-space layout))))
   (iter (for register in (layout-registers layout))
         (funcall fn (symbol-id dictionary (name register)))))
 
-(defun compute-accessor-function (name reader-p)
-  (if (typep name 'boolean) (if reader-p #'invalid-register-access-read-trap #'invalid-register-access-write-trap) (fdefinition name)))
+(defun compute-accessor-function (name reader-p id)
+  (if (typep name 'boolean) 
+      (if reader-p
+          (make-invalid-register-access-read-trap id)
+          (make-invalid-register-access-write-trap id))
+      (fdefinition name)))
 
 (defun map-add-layout-specs (space layout-specs map fn-maker &optional values)
-  "Replace MAP entry sets corresponding to successive layout register id sets
+  "Replace sets of entries in MAP, which correspond to successive layout register id sets
    referenced by LAYOUT-SPECS, with result of application of the function
    made by FN-MAKER, accordingly with the per-layout information provided in
    LAYOUT-SPECS and a corresponding member of VALUES, if any.
@@ -414,7 +420,7 @@
   (iter (for (name reader writer) in layout-specs)
         (let* ((layout (layout space name))
                (fn (funcall fn-maker layout reader writer (pop values))))
-          (mapc-layout-register-ids (lambda (id) (setf (aref map id) (funcall fn id (aref map id)))) layout))))
+          (mapc-layout-register-ids (lambda (id) (setf (aref map id) (funcall fn (aref map id) id))) layout))))
 
 (defun compute-inherited-layouts (direct-layout-instances eligible-parents)
   (values (set-difference (remove-duplicates (apply #'append (mapcar #'device-class-layouts eligible-parents))) 
@@ -451,8 +457,8 @@
       (with-slots (selectors readers writers) o
         (mapc (curry #'apply #'map-add-layout-specs space direct-layout-specs)
               `((,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
-                (,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r t))))
-                (,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w nil)))))))))
+                (,readers   ,(y (nil r nil nil) (y (old id) (if (eq r t) old (compute-accessor-function r t id)))))
+                (,writers   ,(y (nil nil w nil) (y (old id) (if (eq w t) old (compute-accessor-function w nil id))))))))))
   (:method ((o device-class) space direct-layout-specs)
     (declare (type (or null space) space) (type list direct-layout-specs))
     #+ecl
@@ -476,11 +482,11 @@
               (let ((providing-parents (mapcar (rcurry #'find eligible-parents :key #'device-class-layouts :test #'member) inherited-layout-instances)))
                 (mapc (curry #'apply #'map-add-layout-specs space)
                       `((,direct-layout-specs    ,selectors ,(y (l nil nil nil) (mk-f-cdrwalk (layout-register-selectors l))))
-                        (,direct-layout-specs    ,readers   ,(y (nil r nil nil) (mk-f-const-or-2 (not (eq r t)) (compute-accessor-function r t))))
-                        (,direct-layout-specs    ,writers   ,(y (nil nil w nil) (mk-f-const-or-2 (not (eq w t)) (compute-accessor-function w nil))))
-                        (,inherited-layout-specs ,selectors ,(y (nil nil nil p) (y (id nil) (aref (device-class-selectors p) id))) ,providing-parents)
-                        (,inherited-layout-specs ,readers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-readers p) id))) ,providing-parents)
-                        (,inherited-layout-specs ,writers   ,(y (nil nil nil p) (y (id nil) (aref (device-class-writers p) id))) ,providing-parents)))))))
+                        (,direct-layout-specs    ,readers   ,(y (nil r nil nil) (y (old id) (if (eq r t) old (compute-accessor-function r t id)))))
+                        (,direct-layout-specs    ,writers   ,(y (nil nil w nil) (y (old id) (if (eq w t) old (compute-accessor-function w nil id)))))
+                        (,inherited-layout-specs ,selectors ,(y (nil nil nil p) (y (nil id) (aref (device-class-selectors p) id))) ,providing-parents)
+                        (,inherited-layout-specs ,readers   ,(y (nil nil nil p) (y (nil id) (aref (device-class-readers p) id))) ,providing-parents)
+                        (,inherited-layout-specs ,writers   ,(y (nil nil nil p) (y (nil id) (aref (device-class-writers p) id))) ,providing-parents)))))))
         (if direct-layout-specs
             (error 'spaceless-layout-reference :class (class-name o))
             ;; Messing with initargs would be way too painful...
@@ -600,9 +606,10 @@
     (do-device-registers (layout reader-name writer-name register selector) device
       (let* ((main-ri-name (device-register-instance-name device layout (name register)))
              (id (1+ (hash-table-count *register-instances-by-id*)))
+             (reg-id (register-id (name register)))
              (instance (make-register-instance :name main-ri-name :register register :device device :selector selector :id id :layout layout
-                                               :reader (compute-accessor-function reader-name t)
-                                               :writer (compute-accessor-function writer-name nil))))
+                                               :reader (compute-accessor-function reader-name t reg-id)
+                                               :writer (compute-accessor-function writer-name nil reg-id))))
         (setf (register-instance-by-id id) instance)
         (iter (for ri-name in (cons main-ri-name (mapcar (curry #'device-register-instance-name device layout)
                                                 (reg-aliases register))))
@@ -734,19 +741,19 @@
 
 (define-condition invalid-register-access (bit-notation-error)
   ((device :initarg :device)
-   (selector :initarg :selector)))
+   (id :initarg :id)))
 
 (define-reported-condition invalid-register-read (invalid-register-access)
   ()
-  (:report (device selector)
-           "~@<Invalid register read for device ~S, selector 0x~X, register ~S.~:@>"
-           device (- selector) (register-by-id (device-class-space (class-of-device device)) (- -1 selector))))
+  (:report (device id)
+           "~@<Invalid register read for device ~S, register id 0x~X, register ~S.~:@>"
+           device id (register-by-id (device-class-space (class-of-device device)) id)))
 
 (define-reported-condition invalid-register-write (invalid-register-access)
   ((value :initarg :value))
-  (:report (value device selector)
-           "~@<Invalid register write of ~8,'0X for device ~S, selector 0x~X, register ~S.~:@>"
-           value device (- selector) (register-by-id (device-class-space (class-of-device device)) (- -1 selector))))
+  (:report (value device id)
+           "~@<Invalid register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"
+           value device id (register-by-id (device-class-space (class-of-device device)) id)))
 
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
