@@ -685,6 +685,10 @@
   ((bitfields :initarg :bitfields))
   (:report (bitfields space) "~@<Unable to find a common format for bitfields ~{ ~A~} in space ~S~:@>" bitfields space))
 
+(define-reported-condition bitfields-unknown (bit-notation-error)
+  ((bitfields :initarg :bitfields))
+  (:report (bitfields) "~@<Unable to find a space for bitfields: ~{ ~A~}~:@>" bitfields))
+
 (define-reported-condition invalid-register-selectors-in-layout-definition (space-definition-error)
   ((layout :initarg :layout)
    (bad-selectors :initarg :bad-selectors))
@@ -945,7 +949,8 @@
   (iter (for (name space) in-hashtable *spaces*)
         (when (and (symbolp name)
                    (every (lambda (bf) (bitfield space bf :if-does-not-exist :continue)) bytenames))
-          (return space))))
+          (return-from find-space-with-bytenames space)))
+  (error 'bitfields-unknown :bitfields bytenames))
 
 (defmacro decode-context ((spacename &optional space-want bitfield fmtname) regname bytenames &body body)
   (unless (or regname bytenames)

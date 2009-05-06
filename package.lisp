@@ -10,7 +10,7 @@
    #:space-device #:space-remove-device
    #:name ;; this wants to go elsewhere.
    ;; conditions
-   #:bit-notation-error #:protocol-class-instantiation #:underspecified-context #:bitfields-divergent-in-space #:namespace-unification-conflict
+   #:bit-notation-error #:protocol-class-instantiation #:underspecified-context #:bitfields-unknown #:bitfields-divergent-in-space #:namespace-unification-conflict
    #:invalid-register-selectors-in-layout-definition #:incompatible-bitfield-redefinition #:device-class-definition-error
    #:spaceless-layout-reference #:cross-space-inheritance #:device-type-not-directly-instantiable #:conflicting-bitfield-names
    #:invalid-register-access #:invalid-register-read #:invalid-register-write
