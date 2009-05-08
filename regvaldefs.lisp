@@ -1025,6 +1025,36 @@
     `(format-decode (load-time-value (format ,fmtname))
                     (device-register ,device (load-time-value (register-id ,regname))))))
 
+(defmacro place-bit (place regname bytename)
+  (decode-context (space-name space) regname `(,bytename)
+    `(ldb-test ',(bitfield-byte space bytename) ,place)))
+  
+(defmacro place-bit-value (place regname bytename)
+  (decode-context (space-name space) regname `(,bytename)
+    `(ldb ',(bitfield-byte space bytename) ,place)))
+
+(define-setc-expander place-bit (value place regname bytename &key write-only)
+  (decode-context (space-name space bitfield) regname `(,bytename)
+    (let ((mask (byte-bitmask (bitfield-spec bitfield))))
+      `(setf ,place
+             ,(eeval
+               `(logior ,value ,(unless write-only place))
+               `(,mask ,(lognot mask))
+               `(,(mkenv space-name (name bitfield)) nil))))))
+
+(defmacro place-bits (place regname (&rest bytenames))
+  (decode-context (space-name space bitfield) regname bytenames
+    `(values-list 
+      (mapcar (rcurry #'ldb-test ,place) ',(mapcar [bitfield-byte space] bytenames)))))
+
+(define-setc-expander place-bits (values place regname (&rest bytenames) &key write-only)
+  (decode-context (space-name space bitfield) regname bytenames
+    (let* ((initial (unless write-only place))
+           (bytes (mapcar [bitfield-byte space] bytenames)))
+      `(setf ,place ,(eeval (list* 'logior initial (ensure-destructurisation bytenames values))
+                            (list* (lognot (bytes-bitmask bytes)) (mapcar #'byte-bitmask bytes))
+                            (list* nil (mapcar [mkenv space-name] bytenames)))))))
+
 (defmacro test-bits (place bytenames &rest bytevals)
   "Check if every bitfield among those specified by BYTENAMES is set to a value denoted by
    a corresponding member of BYTEVALS."
