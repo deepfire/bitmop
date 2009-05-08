@@ -1025,6 +1025,23 @@
     `(format-decode (load-time-value (format ,fmtname))
                     (device-register ,device (load-time-value (register-id ,regname))))))
 
+(defmacro test-bits (place bytenames &rest bytevals)
+  "Check if every bitfield among those specified by BYTENAMES is set to a value denoted by
+   a corresponding member of BYTEVALS."
+  (decode-context (space-name space) nil bytenames
+    (let ((bytenames (ensure-list bytenames)))
+      `(= (logand ,place ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
+          (bits ,bytenames ,@bytevals)))))
+
+(defmacro test-bits-set (&environment env (&rest bytenames) val)
+  "Check if every bitfield specified by BYTENAMES is set to all 1's."
+  (let ((mask (bytes-bitmask (mapcar [bitfield-byte (space (environment-space-name-context env))] bytenames))))
+    `(= (logand ,val ,mask) ,mask)))
+
+(defmacro bit-value (value bytename)
+  (decode-context (space-name space) nil `(,bytename)
+    `(ldb ',(bitfield-byte space bytename) ,value)))
+
 (defmacro devbit (device regname bytename)
   (decode-context (space-name space) regname `(,bytename)
     `(ldb-test ',(bitfield-byte space bytename)
@@ -1083,12 +1100,3 @@
       `(= (logand (device-register ,device (load-time-value (register-id ,regname)))
                   ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
           (bits ,bytenames ,@bytevals)))))
-
-(defmacro test-bits (&environment env (&rest bytenames) val)
-  "Check if every bitfield specified by BYTENAMES is set to all 1's."
-  (let ((mask (bytes-bitmask (mapcar [bitfield-byte (space (environment-space-name-context env))] bytenames))))
-    `(= (logand ,val ,mask) ,mask)))
-
-(defmacro bit-value (value bytename)
-  (decode-context (space-name space) nil `(,bytename)
-    `(ldb ',(bitfield-byte space bytename) ,value)))

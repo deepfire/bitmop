@@ -24,7 +24,7 @@
    #:register-id #:register-by-id #:register-selector
    ;; bitfield, format, byteval
    #:bitfield #:bitfield-byte #:bitfield-format #:bitfield-decode
-   #:test-devbits #:test-bits #:format-decode
+   #:test-devbits #:test-bits #:test-bits-set #:format-decode
    #:byteval #:byterevval
    ;; device metaclasses
    #:device-class #:device-class-p #:coerce-to-device-class #:define-protocol-device-class #:define-device-class #:define-device-subclass
@@ -41,7 +41,7 @@
    #:struct-device #:make-struct-device-instance
    #:device-reader #:device-writer #:set-device-reader #:set-device-writer
    ;; user API
-   #:devreg #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
+   #:decode-context #:devreg #:place-bit #:place-bits #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
    ;; sugar.lisp
    #:with-device-bits-toggled #:with-logged-device-io))
 
