@@ -14,6 +14,7 @@
    #:invalid-register-selectors-in-layout-definition #:incompatible-bitfield-redefinition #:device-class-definition-error
    #:spaceless-layout-reference #:cross-space-inheritance #:device-type-not-directly-instantiable #:conflicting-bitfield-names
    #:invalid-register-access #:invalid-register-read #:invalid-register-write
+   #:invalid-device-register
    ;; LAYOUTS
    #:layout #:define-layout #:layout-space #:layout-registers #:layout-multi-p #:layout-name-format #:layout-register-selectors
    ;; register stuff
@@ -40,6 +41,7 @@
    #:extended-register-device #:device-extensions
    #:struct-device #:make-struct-device-instance
    #:device-reader #:device-writer #:set-device-reader #:set-device-writer
+   #:device-register-layout #:device-register-instance
    ;; user API
    #:decode-context #:devreg #:place-bit #:place-bits #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
    ;; sugar.lisp

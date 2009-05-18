@@ -759,6 +759,24 @@
            "~@<Invalid register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"
            value device id (register-by-id (device-class-space (class-of-device device)) id)))
 
+(define-reported-condition invalid-device-register (bit-notation-error)
+  ((device :initarg :device)
+   (register :initarg :register))
+  (:report (register device)
+           "~@<Register ~S is not referred by layouts of ~S.~:@>" register device))
+
+(defun device-register-layout (device name &key (if-does-not-exist :error))
+  "Return the layout of a DEVICE's register, who goes by NAME."
+  (or (iter (for layout in (device-class-layouts (class-of-device device)))
+            (finding layout such-that (find name (layout-registers layout) :key #'name)))
+      (case if-does-not-exist
+        (:continue nil)
+        (:error (error 'invalid-device-register :device device :register name)))))
+
+(defun device-register-instance (device name)
+  "Return the instance of a DEVICE's register, who goes by NAME."
+  (register-instance (device-register-instance-name device (device-register-layout device name) name)))
+
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
   (bitfield-formats% (bitfield space bitfield-name)))
