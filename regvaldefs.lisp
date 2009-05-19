@@ -193,15 +193,15 @@
   ((extended-layouts :accessor device-class-extended-layouts :type list :initarg :extended-layouts)
    (extensions :accessor device-class-extensions :type (vector simple-array) :documentation "Selector-indexed storage for extended register information.")))
 
-(defun make-invalid-register-access-read-trap (id)
+(defun make-invalid-register-access-read-trap (id format-control)
   (lambda (device selector)
     (declare (ignore selector))
-    (error 'invalid-register-read :device device :id id)))
+    (error 'invalid-register-read :device device :id id :format-control format-control)))
 
-(defun make-invalid-register-access-write-trap (id)
+(defun make-invalid-register-access-write-trap (id format-control)
   (lambda (value device selector)
     (declare (ignore selector))
-    (error 'invalid-register-write :value value :device device :id id)))
+    (error 'invalid-register-write :value value :device device :id id :format-control format-control)))
 
 (defmethod device-class-register-selector ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i))
 (defmethod device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i))
@@ -209,9 +209,9 @@
 (defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-readers o) i) fn))
 (defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-writers o) i) fn))
 (defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
-  (setf (aref (device-class-readers o) i) (make-invalid-register-access-read-trap i)))
+  (setf (aref (device-class-readers o) i) (make-invalid-register-access-read-trap i "~@<Disabled register read access for device ~S, register id 0x~X, register ~S.~:@>")))
 (defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
-  (setf (aref (device-class-writers o) i) (make-invalid-register-access-write-trap i)))
+  (setf (aref (device-class-writers o) i) (make-invalid-register-access-write-trap i "~@<Disabled register write access of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>")))
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
 
@@ -374,9 +374,11 @@
            (rev-iota (start n)
              (iota n :start (- -1 start) :step -1))
            (irart-iota (start n)
-             (mapcar #'make-invalid-register-access-read-trap (iota n :start start)))
+             (mapcar (rcurry #'make-invalid-register-access-read-trap "~@<Undefined register read for device ~S, register id 0x~X, register ~S.~:@>")
+                     (iota n :start start)))
            (irawt-iota (start n)
-             (mapcar #'make-invalid-register-access-write-trap (iota n :start start)))
+             (mapcar (rcurry #'make-invalid-register-access-write-trap "~@<Undefined register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>")
+                     (iota n :start start)))
            (initialise-pool-tail (pool start n initialiser)
              (setf (subseq pool start) (funcall initialiser start n))))
       (iter (for (slot-name type initialiser initial) in `((selectors fixnum ,#'rev-iota 0)
@@ -405,8 +407,12 @@
 (defun compute-accessor-function (name reader-p id)
   (if (typep name 'boolean) 
       (if reader-p
-          (make-invalid-register-access-read-trap id)
-          (make-invalid-register-access-write-trap id))
+          (make-invalid-register-access-read-trap id (if name
+                                                         "~@<Not-yet-initialised register read for device ~S, register id 0x~X, register ~S.~:@>"
+                                                         "~@<Undefined register read for device ~S, register id 0x~X, register ~S.~:@>"))
+          (make-invalid-register-access-write-trap id (if name
+                                                         "~@<Not-yet-initialised register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"
+                                                         "~@<Undefined register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>")))
       (fdefinition name)))
 
 (defun map-add-layout-specs (space layout-specs map fn-maker &optional values)
@@ -601,7 +607,7 @@
                           :test (lambda (c) (typep c 'bad-redefinition))
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
-    (do-device-class-registers (layout reader-name writer-name register selector) device-class
+    (do-device-class-registers (layout reader-name writer-name register selector) (class-of-device device)
       (let* ((main-ri-name (device-register-instance-name device layout (name register)))
              (id (1+ (hash-table-count *register-instances-by-id*)))
              (reg-id (register-id (name register)))
@@ -743,19 +749,18 @@
 
 (define-condition invalid-register-access (bit-notation-error)
   ((device :initarg :device)
-   (id :initarg :id)))
+   (id :initarg :id)
+   (format-control :initarg :format-control)))
 
 (define-reported-condition invalid-register-read (invalid-register-access)
   ()
-  (:report (device id)
-           "~@<Invalid register read for device ~S, register id 0x~X, register ~S.~:@>"
-           device id (register-by-id (device-class-space (class-of-device device)) id)))
+  (:report (device id format-control)
+           format-control device id (register-by-id (device-class-space (class-of-device device)) id)))
 
 (define-reported-condition invalid-register-write (invalid-register-access)
   ((value :initarg :value))
-  (:report (value device id)
-           "~@<Invalid register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"
-           value device id (register-by-id (device-class-space (class-of-device device)) id)))
+  (:report (value device id format-control)
+           format-control value device id (register-by-id (device-class-space (class-of-device device)) id)))
 
 (define-reported-condition invalid-device-register (bit-notation-error)
   ((device :initarg :device)
