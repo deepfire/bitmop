@@ -571,26 +571,24 @@
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
   (format-symbol :keyword (layout-name-format layout) (device-type device) (device-id device) name))
 
-(defmacro do-device-registers ((layout reader-name writer-name register selector) device
-                               &body body &aux (layout-var (or layout (gensym))))
+(defmacro do-device-class-registers ((layout reader-name writer-name register selector) device-class
+                                     &body body &aux (layout-var (or layout (gensym))))
   "Execute BODY with LAYOUT, REGISTER, SELECTOR, READER-NAME and WRITER-NAME
-   bound to corresponding values for every register defined for DEVICE.
+   bound to corresponding values for every register defined in DEVICE-CLASS.
 
    Any variable name can be specified as NIL, which is intepreted as a
    request to ignore that binding."
-  (with-gensyms (class)
-    (once-only (device)
-     `(let* ((,class (class-of-device ,device)))
-        (iter (for ,layout in (device-class-layouts ,class))
-              ,@(when (or reader-name writer-name)
-                 `((for (nil ,reader-name ,writer-name) in (device-class-effective-layout-specs ,class))))
-              (iter ,@(when register `((for ,register in (layout-registers ,layout-var))))
-                    ,@(when selector `((for ,selector in (layout-register-selectors ,layout-var))))
-                    ,@body))))))
+  (once-only (device-class)
+    `(iter (for ,layout in (device-class-layouts ,device-class))
+           ,@(when (or reader-name writer-name)
+                   `((for (nil ,reader-name ,writer-name) in (device-class-effective-layout-specs ,device-class))))
+           (iter ,@(when register `((for ,register in (layout-registers ,layout-var))))
+                 ,@(when selector `((for ,selector in (layout-register-selectors ,layout-var))))
+                 ,@body))))
 
 (defun purge-device-register-instances (device)
   "Purge all register instances associated with DEVICE."
-  (do-device-registers (layout nil nil register nil) device
+  (do-device-class-registers (layout nil nil register nil) (class-of-device device)
     (let* ((ri-name (device-register-instance-name device layout (name register)))
            (ri (register-instance ri-name)))
       (setf (register-instance-by-id (reginstance-id ri)) nil) ; Not REMHASH: that will screw up id allocation.
@@ -603,7 +601,7 @@
                           :test (lambda (c) (typep c 'bad-redefinition))
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
-    (do-device-registers (layout reader-name writer-name register selector) device
+    (do-device-class-registers (layout reader-name writer-name register selector) device-class
       (let* ((main-ri-name (device-register-instance-name device layout (name register)))
              (id (1+ (hash-table-count *register-instances-by-id*)))
              (reg-id (register-id (name register)))
