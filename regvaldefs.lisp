@@ -601,19 +601,19 @@
       (mapc #'remove-register-instance (cons ri-name (mapcar (curry #'device-register-instance-name device layout)
                                                              (reg-aliases register)))))))
 
-(defun create-device-register-instances (device)
+(defun create-device-register-instances (device &aux (device-class (class-of-device device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
   (with-retry-restarts ((retry ()
                           :test (lambda (c) (typep c 'bad-redefinition))
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
-    (do-device-class-registers (layout reader-name writer-name register selector) (class-of-device device)
+    (do-device-class-registers (layout reader-name writer-name register selector) device-class
       (let* ((main-ri-name (device-register-instance-name device layout (name register)))
              (id (1+ (hash-table-count *register-instances-by-id*)))
              (reg-id (register-id (name register)))
              (instance (make-register-instance :name main-ri-name :register register :device device :selector selector :id id :layout layout
-                                               :reader (compute-accessor-function reader-name t reg-id)
-                                               :writer (compute-accessor-function writer-name nil reg-id))))
+                                               :reader (device-class-reader device-class reg-id)
+                                               :writer (device-class-writer device-class reg-id))))
         (setf (register-instance-by-id id) instance)
         (iter (for ri-name in (cons main-ri-name (mapcar (curry #'device-register-instance-name device layout)
                                                 (reg-aliases register))))
