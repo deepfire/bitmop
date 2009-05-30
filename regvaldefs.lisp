@@ -620,12 +620,6 @@
               (assert ri-name)
               (setf (register-instance ri-name) instance))))))
 
-(defmethod initialize-instance :around ((device device) &key &allow-other-keys)
-  (when *verbose-device-init-p*
-    (cl:format *rvd-log-stream* "~S " (type-of device))
-    (finish-output *rvd-log-stream*))
-  (call-next-method))
-
 (defun make-struct-device-instance (type &rest initargs)
   (lret* ((class (device-class type))
           (space (struct-device-class-space class))
@@ -651,6 +645,15 @@
 
 (defmethod initialize-instance :after ((device extended-register-device) &key &allow-other-keys)
   (setf (device-extensions device) (device-class-extensions (class-of device))))
+
+(defmethod initialize-instance :around ((device device) &key &allow-other-keys)
+  (when *verbose-device-init-p*
+    (cl:format *rvd-log-stream* "~S " (type-of device))
+    (finish-output *rvd-log-stream*))
+  (handler-bind ((error (lambda (c)
+                          (purge-device-register-instances device)
+                          (error c))))
+    (call-next-method)))
 
 (defun space-device-count (space)
   (hash-table-count (devices space)))
