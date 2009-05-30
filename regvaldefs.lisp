@@ -24,7 +24,7 @@
   (enable-curry-reader)
   (enable-compose-reader))
 
-(defvar *log-stream* t)
+(defvar *rvd-log-stream* t)
 (defvar *verbose-device-init-p* t)
 
 (defclass space ()
@@ -622,8 +622,8 @@
 
 (defmethod initialize-instance :around ((device device) &key &allow-other-keys)
   (when *verbose-device-init-p*
-    (cl:format *log-stream* "~S " (type-of device))
-    (finish-output *log-stream*))
+    (cl:format *rvd-log-stream* "~S " (type-of device))
+    (finish-output *rvd-log-stream*))
   (call-next-method))
 
 (defun make-struct-device-instance (type &rest initargs)

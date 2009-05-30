@@ -4,7 +4,7 @@
   (:shadow #:space #:format #:documentation)
   (:export
    ;; knobs
-   #:*log-stream* #:*verbose-device-init-p*
+   #:*rvd-log-stream* #:*verbose-device-init-p*
    ;; space
    #:space #:space-name #:environment-space-name-context #:space-name-context #:define-namespace #:undefine-namespace #:with-namespaces #:set-namespace #:unify-namespaces #:space-device-count #:init-device-model #:list-spaces #:undefine-space
    #:space-device #:space-remove-device
