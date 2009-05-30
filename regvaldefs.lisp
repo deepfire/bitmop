@@ -659,6 +659,7 @@
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
     (remhash (device-hash-id device) (devices space))
+    (purge-device-register-instances device)
     (removef (instances device) device)))
 
 (defun init-device-model ()
