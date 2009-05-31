@@ -575,7 +575,11 @@
 
 (defun device-register-instance-name (device layout name)
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
-  (format-symbol :keyword (layout-name-format layout) (device-type device) (device-id device) name))
+  (let ((name-format (if (or (layout-multi-p layout)
+                             (> (length (instances device)) 1))
+                         "~A~D.~A"
+                         (layout-name-format layout))))
+    (format-symbol :keyword name-format (device-type device) (device-id device) name)))
 
 (defmacro do-device-class-registers ((layout reader-name writer-name register selector) device-class
                                      &body body &aux (layout-var (or layout (gensym))))
@@ -845,7 +849,7 @@
       (setf (register-space name) space))
     (add-symbol (register-dictionary space) name register nil)))
 
-(defun ensure-layout (space name documentation register-specs multi-p &optional (name-format (if multi-p "~A~D.~A" "~2*~A")))
+(defun ensure-layout (space name documentation register-specs multi-p &optional (name-format "~2*~A"))
   (let ((selectors (mapcar #'second register-specs)))
     (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
       (error 'invalid-register-selectors-in-layout-definition :space (space-name space) :layout name :bad-selectors bad-selectors))
