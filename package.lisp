@@ -20,6 +20,7 @@
    ;; register stuff
    #:register #:reg-format #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-layout #:reginstance-register #:reginstance-value #:set-reginstance-value
+   #:reginstance-reader #:reginstance-writer
    #:register-id-valid-for-device-class-p #:register-name-valid-for-device-class-p
    ;; register introspection, SLOW
    #:register-id #:register-by-id #:register-selector
@@ -41,7 +42,7 @@
    #:extended-register-device #:device-extensions
    #:struct-device #:make-struct-device-instance
    #:device-reader #:device-writer #:set-device-reader #:set-device-writer
-   #:device-register-layout #:device-register-instance
+   #:device-register-layout #:device-register-instance-name #:device-register-instance
    ;; user API
    #:decode-context #:devreg #:place-bit #:place-bits #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
    ;; sugar.lisp
