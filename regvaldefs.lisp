@@ -799,7 +799,7 @@
 (defun register-format-field-type (name)
   (format-symbol t "~A-BITFIELD" name))
 
-(defun define-byteval (bitfield byte value name documentation)
+(defun define-byteval (bitfield byte value name &optional (documentation ""))
   (lret ((byteval (make-byteval :name name :byte byte :value value :documentation documentation)))
     (setf (byteval bitfield name) byteval
           (byterevval bitfield value) byteval)))
