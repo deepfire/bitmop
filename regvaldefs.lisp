@@ -24,6 +24,7 @@
   (enable-curry-reader)
   (enable-compose-reader))
 
+(defvar *rvd-synchronous-logging-p* t)
 (defvar *rvd-log-stream* t)
 (defvar *verbose-device-init-p* t)
 
@@ -652,8 +653,11 @@
 
 (defmethod initialize-instance :around ((device device) &key &allow-other-keys)
   (when *verbose-device-init-p*
-    (cl:format *rvd-log-stream* "~S " (type-of device))
-    (finish-output *rvd-log-stream*))
+    (let ((stream (if (eq *rvd-log-stream* t) *standard-output* *rvd-log-stream*)))
+      (write (string (type-of device)) :stream stream :escape nil)
+      (write-char #\Space stream)
+      (when *rvd-synchronous-logging-p*
+        (finish-output stream))))
   (handler-bind ((error (lambda (c)
                           (purge-device-register-instances device)
                           (error c))))
