@@ -791,9 +791,10 @@
         (:continue nil)
         (:error (error 'invalid-device-register :device device :register name)))))
 
-(defun device-register-instance (device name)
+(defun device-register-instance (device name &key (if-does-not-exist :error))
   "Return the instance of a DEVICE's register, who goes by NAME."
-  (register-instance (device-register-instance-name device (device-register-layout device name) name)))
+  (when-let ((layout (device-register-layout device name :if-does-not-exist if-does-not-exist)))
+    (register-instance (device-register-instance-name device layout name))))
 
 (defun bitfield-formats (space bitfield-name)
   "Yield the format of BITFIELD-NAMEd in SPACE"
