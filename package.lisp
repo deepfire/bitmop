@@ -16,7 +16,7 @@
    #:invalid-register-access #:invalid-register-read #:invalid-register-write
    #:invalid-device-register
    ;; LAYOUTS
-   #:layout #:define-layout #:layout-space #:layout-registers #:layout-multi-p #:layout-name-format #:layout-register-selectors
+   #:layout #:define-layout #:layout-space #:layout-registers #:layout-force-multi #:layout-name-format #:layout-register-selectors
    ;; register stuff
    #:register #:reg-format #:reg-layout #:define-register #:register-decode
    #:register-instance #:register-instance-by-id #:reginstance-id #:reginstance-device #:reginstance-layout #:reginstance-register #:reginstance-value #:set-reginstance-value

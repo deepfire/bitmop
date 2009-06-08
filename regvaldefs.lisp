@@ -73,15 +73,14 @@
 
 (defstruct (layout (:include spaced))
   "Maps register names into register structures."
-  name-format
-  multi-p
+  force-multi
   registers
   register-selectors)
 
 (defmethod print-object ((o layout) stream)
   (print-unreadable-object (o stream)
-    (common-lisp:format stream "~@<LAYOUT~; ~A~:[~; multiply-instantiable~] registers:~{ ~A~}~:@>"
-                        (name o) (layout-multi-p o) (mapcar #'name (layout-registers o)))))
+    (common-lisp:format stream "~@<LAYOUT~; ~A registers:~{ ~A~}~:@>"
+                        (name o) (mapcar #'name (layout-registers o)))))
 
 (defstruct (register (:include spaced) (:conc-name reg-))
   "Defines a formatted register, specified within a layout with a selector."
@@ -574,13 +573,17 @@
 (defun device-hash-id (device)
   (list (device-type device) (device-id device)))
 
-(defun device-register-instance-name (device layout name)
+(defun device-register-instance-name (device layout name &aux (namestring (string name)))
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
-  (let ((name-format (if (or (layout-multi-p layout)
-                             (> (length (instances device)) 1))
-                         "~A~D.~A"
-                         (layout-name-format layout))))
-    (format-symbol :keyword name-format (device-type device) (device-id device) name)))
+  (let* ((dot-posn (position #\. namestring))
+         (qualify (or (layout-force-multi layout)
+                      (> (length (instances device)) 1))))
+    (make-keyword (concatenate 'string
+                               (cond (dot-posn (subseq namestring 0 dot-posn))
+                                     (qualify (string (device-type device))))
+                               (when qualify (write-to-string (device-id device)))
+                               (when (or dot-posn qualify) ".")
+                               namestring))))
 
 (defmacro do-device-class-registers ((layout reader-name writer-name register selector) device-class
                                      &body body &aux (layout-var (or layout (gensym))))
@@ -853,19 +856,18 @@
       (setf (register-space name) space))
     (add-symbol (register-dictionary space) name register nil)))
 
-(defun ensure-layout (space name documentation register-specs multi-p &optional (name-format "~2*~A"))
+(defun ensure-layout (space name documentation register-specs force-multi)
   (let ((selectors (mapcar #'second register-specs)))
     (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
       (error 'invalid-register-selectors-in-layout-definition :space (space-name space) :layout name :bad-selectors bad-selectors))
     (lret ((layout (make-layout :name name :space space :documentation documentation
-                                :register-selectors selectors :multi-p multi-p :name-format name-format)))
+                                :register-selectors selectors :force-multi force-multi)))
       (setf (layout space name) layout
             (layout-registers layout) (iter (for (name selector . rest) in register-specs)
                                             (collect (apply #'define-register layout name rest)))))))
 
-(defmacro define-layout (&environment env (name doc &key multi-p name-format) &rest defs)
-  `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,multi-p
-                  ,@(when name-format `(,name-format))))
+(defmacro define-layout (&environment env (name doc &key force-multi) &rest defs)
+  `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,force-multi))
 
 ;;;
 ;;;  o  layout templates
