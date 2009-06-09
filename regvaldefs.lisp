@@ -696,6 +696,8 @@
 
 (define-condition bit-notation-error (error) ())
 
+(define-simple-error bit-notation-error)
+
 (define-condition definition-error (bit-notation-error) ())
 
 (define-condition space-definition-error (definition-error)
