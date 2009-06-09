@@ -46,11 +46,13 @@
          (orig-writers (device-writers device))
          (class (class-of-device device))
          (space (device-class-space class))
-         (register-name-lengths (mapcar (compose #'length #'string #'name) (mappend #'layout-registers (device-class-layouts class))))
-         (reader-format (cl:format nil "~~&~~~D,0T ~~A~~~D,0T -> ~~X~~%" 11 (+ 10 (apply #'max register-name-lengths))))
-         (writer-format (cl:format nil "~~&~~8,' X -> ~~A~~%")))
-    (let ((iologging-readers (map '(vector function) (curry #'iolog-wrap-reader stream space reader-format) orig-readers (iota (length orig-readers))))
-          (iologging-writers (map '(vector function) (curry #'iolog-wrap-writer stream space writer-format) orig-writers (iota (length orig-writers)))))
+         (register-name-lengths (mapcar (compose #'length #'string #'name) (mappend #'layout-registers (device-class-layouts class)))))
+    (unless register-name-lengths
+      (bit-notation-error "~@<Asked to trace I/O activity of a ~S, which has no registers.~:@>" device))
+    (let* ((reader-format (cl:format nil "~~&~~~D,0T ~~A~~~D,0T -> ~~X~~%" 11 (+ 10 (apply #'max register-name-lengths))))
+           (writer-format (cl:format nil "~~&~~8,' X -> ~~A~~%"))
+           (iologging-readers (map '(vector function) (curry #'iolog-wrap-reader stream space reader-format) orig-readers (iota (length orig-readers))))
+           (iologging-writers (map '(vector function) (curry #'iolog-wrap-writer stream space writer-format) orig-writers (iota (length orig-writers)))))
       (setf (device-readers device) iologging-readers
             (device-writers device) iologging-writers))
     (values orig-readers orig-writers)))
