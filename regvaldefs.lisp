@@ -73,6 +73,7 @@
 
 (defstruct (layout (:include spaced))
   "Maps register names into register structures."
+  force-prefix
   force-multi
   registers
   register-selectors)
@@ -576,14 +577,17 @@
 (defun device-register-instance-name (device layout name &aux (namestring (string name)))
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
   (let* ((dot-posn (position #\. namestring))
-         (qualify (or (layout-force-multi layout)
+         (qualify (or (layout-force-prefix layout)
+                      (layout-force-multi layout)
                       (> (length (instances device)) 1))))
     (make-keyword (concatenate 'string
                                (cond (dot-posn (subseq namestring 0 dot-posn))
                                      (qualify (string (device-type device))))
                                (when qualify (write-to-string (device-id device)))
                                (when (or dot-posn qualify) ".")
-                               namestring))))
+                               (if (and (not (layout-force-prefix layout)) dot-posn)
+                                   (subseq namestring (1+ dot-posn))
+                                   namestring)))))
 
 (defmacro do-device-class-registers ((layout reader-name writer-name register selector) device-class
                                      &body body &aux (layout-var (or layout (gensym))))
@@ -857,18 +861,18 @@
       (setf (register-space name) space))
     (add-symbol (register-dictionary space) name register nil)))
 
-(defun ensure-layout (space name documentation register-specs force-multi)
+(defun ensure-layout (space name documentation register-specs force-multi force-prefix)
   (let ((selectors (mapcar #'second register-specs)))
     (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
       (error 'invalid-register-selectors-in-layout-definition :space (space-name space) :layout name :bad-selectors bad-selectors))
     (lret ((layout (make-layout :name name :space space :documentation documentation
-                                :register-selectors selectors :force-multi force-multi)))
+                                :register-selectors selectors :force-multi force-multi :force-prefix force-prefix)))
       (setf (layout space name) layout
             (layout-registers layout) (iter (for (name selector . rest) in register-specs)
                                             (collect (apply #'define-register layout name rest)))))))
 
-(defmacro define-layout (&environment env (name doc &key force-multi) &rest defs)
-  `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,force-multi))
+(defmacro define-layout (&environment env (name doc &key force-multi force-prefix) &rest defs)
+  `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,force-multi ,force-prefix))
 
 ;;;
 ;;;  o  layout templates
