@@ -581,9 +581,10 @@
                       (layout-force-multi layout)
                       (> (length (instances device)) 1))))
     (make-keyword (concatenate 'string
-                               (cond (dot-posn (subseq namestring 0 dot-posn))
+                               (cond ((layout-force-prefix layout) (string (device-type device)))
+                                     (dot-posn (subseq namestring 0 dot-posn))
                                      (qualify (string (device-type device))))
-                               (when qualify (write-to-string (device-id device)))
+                               (when qualify (write-to-string (device-id device) :base 10))
                                (when (or dot-posn qualify) ".")
                                (if (and (not (layout-force-prefix layout)) dot-posn)
                                    (subseq namestring (1+ dot-posn))

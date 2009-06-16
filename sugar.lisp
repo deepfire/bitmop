@@ -65,3 +65,16 @@
          (unwind-protect (progn ,@body)
            (setf (device-readers ,device) ,orig-readers
                  (device-writers ,device) ,orig-writers))))))
+
+(defun execute-with-maybe-logged-device-io (fn device stream log-p)
+  "Execute FN with all register access of DEVICE-CLASS conditionally logged
+to STREAM, depending on whether LOG-P evaluates to a non-NIL value."
+  (if log-p
+      (with-logged-device-io (device stream)
+        (funcall fn))
+      (funcall fn)))
+
+(defmacro with-maybe-logged-device-io ((device stream log-p) &body body)
+  "Execute BODY with all register access of DEVICE-CLASS conditionally logged
+to STREAM, depending on whether LOG-P evaluates to a non-NIL value."
+  `(execute-with-maybe-logged-device-io (lambda () ,@body) ,device ,stream ,log-p))

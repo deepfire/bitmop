@@ -46,7 +46,8 @@
    ;; user API
    #:decode-context #:devreg #:place-bit #:place-bits #:decode #:devreg-decode #:devbit #:devbit-decode #:devbit-value #:devbits #:bits #:test-bits #:bit-value
    ;; sugar.lisp
-   #:with-device-bits-toggled #:with-logged-device-io))
+   #:with-device-bits-toggled #:with-logged-device-io
+   #:execute-with-maybe-logged-device-io #:with-maybe-logged-device-io))
 
 (in-package :regvaldefs)
 
