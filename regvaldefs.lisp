@@ -827,7 +827,7 @@
       (and (equal (bitfield-spec b1) (bitfield-spec b2))
            (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
 
-(defun ensure-bitfield (format name size pos doc &optional byteval-specs)
+(defun ensure-bitfield (format name size pos &optional (doc "") byteval-specs)
   (let* ((byte (byte size pos))
          (space (format-space format))
          (bitfield (make-bitfield :name name :spec byte :documentation doc)))
