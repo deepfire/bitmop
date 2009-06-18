@@ -120,7 +120,7 @@
 (defvar *register-instances-by-id* (make-hash-table :test #'eq))
 
 (define-container-hash-accessor *spaces* space :if-exists :continue)
-(define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes)
+(define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes :if-exists :continue)
 (define-container-hash-accessor *register-formats* format :type format :if-exists :continue)
 (define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error :description "register")
 (define-container-hash-accessor *register-instances* register-instance :type register-instance :if-exists :error
@@ -185,8 +185,9 @@
 
 (deftype device-class-umbrella () `(or device-class struct-device-class))
 
+(defgeneric device-class-instances (device-class)
+  (:method ((o struct-device-class)) (struct-device-class-instances o)))
 (defmethod device-class-space ((o struct-device-class)) (struct-device-class-space o))
-(defmethod device-class-instances ((o struct-device-class)) (struct-device-class-instances o))
 (defmethod device-class-layouts ((o struct-device-class)) (struct-device-class-layouts o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
 (defmethod device-class-effective-layout-specs ((o struct-device-class)) (struct-device-class-effective-layout-specs o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
 
@@ -204,15 +205,23 @@
     (declare (ignore selector))
     (error 'invalid-register-write :value value :device device :id id :format-control format-control)))
 
-(defmethod device-class-register-selector ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i))
-(defmethod device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i))
-(defmethod device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-writers o) i))
-(defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-readers o) i) fn))
-(defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function)) (setf (aref (device-class-writers o) i) fn))
-(defmethod set-device-class-reader ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
-  (setf (aref (device-class-readers o) i) (make-invalid-register-access-read-trap i "~@<Disabled register read access for device ~S, register id 0x~X, register ~S.~:@>")))
-(defmethod set-device-class-writer ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
-  (setf (aref (device-class-writers o) i) (make-invalid-register-access-write-trap i "~@<Disabled register write access of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>")))
+(defgeneric device-class-register-selector (device-class id)
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i)))
+(defgeneric device-class-reader (device-class id)
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i)))
+(defgeneric device-class-writer (device-class id)
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-writers o) i)))
+(defgeneric set-device-class-reader (device-class id fn)
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function))
+    (setf (aref (device-class-readers o) i) fn))
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
+    (setf (aref (device-class-readers o) i) (make-invalid-register-access-read-trap i "~@<Disabled register read access for device ~S, register id 0x~X, register ~S.~:@>"))))
+(defgeneric set-device-class-writer (device-class id fn)
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function))
+    (setf (aref (device-class-writers o) i) fn))
+  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
+    (setf (aref (device-class-writers o) i) (make-invalid-register-access-write-trap i "~@<Disabled register write access of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"))))
+
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
 
@@ -320,13 +329,19 @@
   (:method ((o device)) (class-of o)))
 
 (defmethod device-id ((o struct-device)) (struct-device-id o))
-(defmethod instances ((o struct-device)) (struct-device-class-instances (struct-device-class o)))
-(defgeneric (setf instances) (value device))
+(defgeneric (setf instances) (value device)
+  (:method (value (o struct-device)) (setf (struct-device-class-instances (struct-device-class o)) value)))
+(defgeneric instances (device)
+  (:method ((o struct-device)) (struct-device-class-instances (struct-device-class o))))
 
-(defmethod device-reader ((device device) register-id) (aref (device-readers device) register-id))
-(defmethod device-writer ((device device) register-id) (aref (device-writers device) register-id))
-(defmethod set-device-reader ((device device) register-id value) (setf (aref (device-readers device) register-id) value))
-(defmethod set-device-writer ((device device) register-id value) (setf (aref (device-writers device) register-id) value))
+(defgeneric device-reader (device id)
+  (:method ((device device) register-id) (aref (device-readers device) register-id)))
+(defgeneric device-writer (device id)
+  (:method ((device device) register-id) (aref (device-writers device) register-id)))
+(defgeneric set-device-reader (device id value)
+  (:method ((device device) register-id value) (setf (aref (device-readers device) register-id) value)))
+(defgeneric set-device-writer (device id value)
+  (:method ((device device) register-id value) (setf (aref (device-writers device) register-id) value)))
 (defsetf device-reader set-device-reader)
 (defsetf device-writer set-device-writer)
 
