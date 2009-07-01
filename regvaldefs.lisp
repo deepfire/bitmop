@@ -33,7 +33,7 @@
    (documentation :accessor space-documentation :type string :initarg :documentation)
    (referrers :accessor space-referrers :initform nil :type list)
 
-   (devices :accessor devices :initform (make-hash-table :test 'equal) :type hash-table)
+   (devices :accessor devices :initform nil :type list)
    (layouts :accessor layouts :initform (make-hash-table) :type hash-table)
    (registers :accessor register-dictionary :initform (make-dictionary) :type dictionary)
    (bitfields :accessor bitfields :initform (make-hash-table) :type hash-table)
@@ -41,11 +41,10 @@
    ))
 
 (defmethod print-object ((space space) stream)
-  (cl:format stream "~@<#<SPACE:~;~A ~S registers: ~S devices: ~S layouts: ~S~;>~:@>"
+  (cl:format stream "~@<#<SPACE:~;~A ~S registers: ~S layouts: ~S~;>~:@>"
              (space-name space)
              (space-documentation space)
              (map 'list #'name (dictionary::dictionary-ids-to-values (register-dictionary space)))
-             (maphash-values #'device-hash-id (devices space))
              (maphash-values #'name (layouts space))))
 
 (defstruct (docunamed (:conc-name nil))
@@ -586,9 +585,6 @@
 ;;;;
 ;;;; The decisive question is what factors into the register instance name.
 ;;;;
-(defun device-hash-id (device)
-  (list (device-type device) (device-id device)))
-
 (defun device-register-instance-name (device layout name &aux (namestring (string name)))
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
   (let* ((dot-posn (position #\. namestring))
@@ -653,7 +649,7 @@
           (space (struct-device-class-space class))
           (instance (apply (struct-device-class-constructor class) :id (1- (length (struct-device-class-instances class))) initargs)))
     (push instance (struct-device-class-instances class))
-    (setf (gethash (device-hash-id instance) (devices space)) instance)
+    (push device (devices space))
     (create-device-register-instances instance)))
 
 (defmethod initialize-instance :after ((device device) &key &allow-other-keys)
@@ -662,12 +658,11 @@
     (unless space
       (error 'device-type-not-directly-instantiable :type (type-of device)))
     (push device (instances device))
+    (push device (devices space))
     (setf (device-id device) (1- (length (instances device)))
           (device-selectors device) (device-class-selectors device-class)
           (device-readers device) (device-class-readers device-class)
-          (device-writers device) (device-class-writers device-class)
-          ;; register within space
-          (gethash (device-hash-id device) (devices space)) device)
+          (device-writers device) (device-class-writers device-class))
     ;; (cl:format t "Initialized ~S/~S: ~S, ~S, ~S~%" (class-name (class-of device)) (device-id device) (device-selectors device) (device-readers device) (device-writers device))
     (create-device-register-instances device)))
 
@@ -687,20 +682,20 @@
     (call-next-method)))
 
 (defun space-device-count (space)
-  (hash-table-count (devices space)))
+  (length (devices space)))
 
 (defun space-remove-device (device)
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
-    (remhash (device-hash-id device) (devices space))
     (purge-device-register-instances device)
+    (removef (devices space) device)
     (removef (instances device) device)))
 
 (defun init-device-model ()
   "Forget all known device and register instances."
   (iter (for (nil space) in-hashtable *spaces*)
         (when (atom (space-name space))
-          (clrhash (devices space))))
+          (setf (devices space) nil)))
   (do-device-classes (device-class)
     (unless (class-finalized-p device-class)
       (finalize-inheritance device-class))
