@@ -1,4 +1,4 @@
-;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10 -*-
+;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: BITMOP; Base: 10 -*-
 ;;;
 ;;;  (c) copyright 2009 by
 ;;;           Samium Gromoff (_deepfire@feelingofgreen.ru)
@@ -18,7 +18,7 @@
 ;;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;;; Boston, MA  02111-1307  USA.
 
-(in-package :regvaldefs)
+(in-package :device-model)
 
 (defmacro with-device-bits-toggled (device register (&rest bits) (&rest values) &body body)
   "Execute BODY with BITS or DEVICE's REGISTER set to constant boolean VALUES
@@ -33,11 +33,11 @@
 (defun iolog-wrap-reader (stream space format-control reader register-id)
   (lambda (device selector)
     (lret ((ret (funcall reader device selector)))
-      (common-lisp:format stream format-control (name (register-by-id space register-id)) ret))))
+      (format stream format-control (name (register-by-id space register-id)) ret))))
 
 (defun iolog-wrap-writer (stream space format-control writer register-id)
   (lambda (value device selector)
-    (common-lisp:format stream format-control value (name (register-by-id space register-id)))
+    (format stream format-control value (name (register-by-id space register-id)))
     (funcall writer value device selector)))
 
 (defun iolog-wrap-device-accessors (stream device)

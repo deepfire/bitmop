@@ -1,4 +1,4 @@
-;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10; indent-tabs-mode: nil -*-
+;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: BITMOP; Base: 10; indent-tabs-mode: nil -*-
 ;;;
 ;;;  (c) copyright 2007-2008 by
 ;;;           Samium Gromoff (_deepfire@feelingofgreen.ru)
@@ -18,12 +18,12 @@
 ;;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;;; Boston, MA  02111-1307  USA.
 
-(defpackage #:regvaldefs-test
-  (:use :common-lisp :regvaldefs :alexandria :custom-harness :iterate :pergamum :setc)
-  (:shadowing-import-from :regvaldefs #:space)
+(defpackage #:bitmop-test
+  (:use :common-lisp :alexandria :iterate :pergamum :custom-harness :setc :bitmop :device-model)
+  (:shadowing-import-from :bitmop #:space)
   (:export #:run-tests #:pure-evaluation #:device-related))
 
-(in-package :regvaldefs-test)
+(in-package :bitmop-test)
 
 (define-namespace :foo
   (:documentation "Foo device")

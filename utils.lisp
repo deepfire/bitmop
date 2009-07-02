@@ -1,4 +1,4 @@
-;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: REGVALDEFS; Base: 10 -*-
+;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: BITMOP; Base: 10 -*-
 ;;;
 ;;;  (c) copyright 2007-2008 by
 ;;;           Samium Gromoff (_deepfire@feelingofgreen.ru)
@@ -18,7 +18,7 @@
 ;;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;;; Boston, MA  02111-1307  USA.
 
-(in-package :regvaldefs)
+(in-package :bitmop)
 
 (defun prepend/reduce-equiv (what fn to &key identity (test #'eql))
   "Reduce WHAT with FN, then APPEND whatever is produced with TO, unless
