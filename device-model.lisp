@@ -174,7 +174,6 @@
    (readers :accessor device-class-readers :type (vector function) :documentation "ID-indexed register reader lookup table.")
    (writers :accessor device-class-writers :type (vector function) :documentation "ID-indexed register writer lookup table.")
    (space :accessor device-class-space :type (or space null) :initarg :sspace)
-   (enumeration-class :accessor device-class-enumeration-class :type symbol :initarg :enumeration-class)
    (layouts :accessor device-class-layouts :type list)
    (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initform nil :initarg :layouts :documentation "Original layout->accessors alist.")
    (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist."))
@@ -196,7 +195,6 @@
   (constructor nil :type (function (*) struct-device-class)))
 
 (defmethod device-class-space ((o struct-device-class)) (struct-device-class-space o))
-(defmethod device-class-enumeration-class ((o struct-device-class)) (struct-device-class-enumeration-class o))
 (defmethod device-class-layouts ((o struct-device-class)) (struct-device-class-layouts o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
 (defmethod device-class-effective-layout-specs ((o struct-device-class)) (struct-device-class-effective-layout-specs o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
 
@@ -543,6 +541,7 @@
 (defclass device (enumerated)
   ((selectors :accessor device-selectors :type (vector fixnum) :allocation :class) ; copied over from class
    (readers :accessor device-readers :type (vector function) :allocation :class)                     ; ...
+   (enumeration-class :type symbol :initarg :enumeration-class)
    (writers :accessor device-writers :type (vector function) :allocation :class)                     ; ...
    (backend :accessor backend :type (or null device) :initarg :backend))
   (:metaclass device-class))
@@ -575,8 +574,8 @@
 
 (defun device-enumeration-class (device)
   (if (typep device 'struct-device)
-      (device-class-enumeration-class (struct-device-class device))
-      (slot-value* (class-of device) 'enumeration-class (class-name (class-of device)))))
+      (struct-device-class-enumeration-class (struct-device-class device))
+      (slot-value* device 'enumeration-class (class-name (class-of device)))))
 
 (defun enumerate-device (pool device)
   (enumpool-add pool (device-enumeration-class device) device))
