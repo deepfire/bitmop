@@ -64,7 +64,7 @@
    #:define-device-class #:define-protocol-device-class #:define-struct-device-class
    ;; devices
    #:device #:backend
-   #:class-of-device #:enumerate-device
+   #:class-of-device #:device-enumeration-class #:enumerate-device
    #:device-reader #:device-writer #:set-device-reader #:set-device-writer
    #:device-register-selector #:device-register-layout
    #:print-device-object
