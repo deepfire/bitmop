@@ -569,7 +569,6 @@
 (defgeneric class-of-device (device)
   (:documentation "Return the DEVICE's metaclass, or device class structure,
                    depending on its type.")
-  (:method ((o struct-device)) (struct-device-class o))
   (:method ((o device)) (class-of o)))
 
 (defun device-enumeration-class (device)
@@ -632,6 +631,9 @@
   (let* ((class (device-class type))
          (space (struct-device-class-space class)))
     (apply (struct-device-class-constructor class) initargs)))
+
+(defmethod class-of-device ((o struct-device))
+  (struct-device-class o))
 
 ;;; Make the thing obey the enumerated protocol
 (defmethod enumerated-pool ((o struct-device)) (struct-device-enumpool o))
