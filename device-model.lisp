@@ -109,8 +109,10 @@
 (defstruct (enumeration-pool (:conc-name enumpool-))
   (root (make-hash-table) :type hash-table))
 
-(define-container-hash-accessor :i enumclass :container-transform enumpool-root :parametrize-container t :type enumeration-class :if-exists :error)
-(define-container-hash-accessor :i enumclass-ref :container-transform enumclass-root :parametrize-container t :type t :if-exists :error)
+(define-container-hash-accessor :i enumclass :container-transform enumpool-root :parametrize-container t :type enumeration-class :if-exists :error
+                                :iterator do-enumpool-classes)
+(define-container-hash-accessor :i enumclass-ref :container-transform enumclass-root :parametrize-container t :type t :if-exists :error
+                                :iterator do-enumclass-objects)
 
 (defun coerce-to-enumclass (pool enumclass-or-name &key (if-does-not-exist :error))
   (etypecase enumclass-or-name

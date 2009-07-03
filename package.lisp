@@ -47,7 +47,7 @@
    #:invalid-register-access #:invalid-register-read #:invalid-register-write
    #:invalid-device-register
    ;; enumeration
-   #:enumerated #:id #:enumerated-id #:enumerated-class #:enumerated-pool #:enumerated-class-name
+   #:enumerated #:id #:enumerated-id #:enumerated-class #:enumerated-pool #:enumerated-class-name #:do-enumpool-classes #:do-enumclass-objects
    #:enumeration-class #:enumclass #:enumclass-name #:enumclass-pool #:enumclass-ref #:coerce-to-enumclass
    #:enumclass-add #:enumclass-remove #:enumclass-count
    #:enumeration-pool #:enumpool-add #:enumpool-remove #:enumpool-ref
