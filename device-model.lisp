@@ -98,6 +98,9 @@
    (class :reader enumerated-class)
    (pool :reader enumerated-pool)))
 
+(defun enumerated-class-name (enumerated)
+  (enumclass-name (enumerated-class enumerated)))
+
 (defstruct (enumeration-class (:conc-name enumclass-))
   (name nil :type symbol)
   (pool nil :type enumeration-pool)
