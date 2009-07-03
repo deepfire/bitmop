@@ -81,7 +81,7 @@
    #:reginstance-selector #:reginstance-reader #:reginstance-writer #:reginstance-id
    #:reginstance-enumeration-pool #:make-reginstance-enumeration-pool #:register-instance-by-id
    #:reginstance-value #:set-reginstance-value
-   #:device-register-instance #:device-register-instance-name
+   #:device-register-instance #:device-layout-register-instances #:device-register-instances #:device-register-instance-name
    #:purge-device-register-instances #:create-device-register-instances
    ;; final
    #:init-device-model
