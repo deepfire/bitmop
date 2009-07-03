@@ -631,9 +631,7 @@
   (backend nil :type (or null struct-device)))
 
 (defun make-struct-device-instance (type &rest initargs)
-  (let* ((class (device-class type))
-         (space (struct-device-class-space class)))
-    (apply (struct-device-class-constructor class) initargs)))
+  (apply (struct-device-class-constructor (device-class type)) initargs))
 
 (defmethod class-of-device ((o struct-device))
   (struct-device-class o))
