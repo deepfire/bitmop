@@ -506,9 +506,9 @@
 ;;; XXX: not pretty: hack around non-&allow-other-keys-able initargs...
 ;;;
 (defmethod initialize-instance ((o device-class) &rest initargs)
-  (apply #'shared-initialize o t (remove-from-plist initargs :space)))
+  (apply #'call-next-method o (remove-from-plist initargs :space)))
 (defmethod reinitialize-instance ((o device-class) &rest initargs)
-  (apply #'shared-initialize o nil (remove-from-plist initargs :space)))
+  (apply #'call-next-method o (remove-from-plist initargs :space)))
 (defmethod initialize-instance :after ((o device-class) &key space &allow-other-keys)
   (declare (ignore space)))
 
