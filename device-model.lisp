@@ -773,14 +773,16 @@
 (defun device-layout-register-instances (device layout)
   "Return all register instances of DEVICE, whose abstract registers
 belong to LAYOUT."
-  (remove-if-not (lambda (ri) (and (eq device (reginstance-device ri))
-                                   (eq layout (reginstance-layout ri))))
-                 (remove-duplicates (hash-table-values (ri-enumpool-reginstances (enumerated-pool device))) :test #'eq)))
+  (remove-duplicates (remove-if-not (lambda (ri) (and (eq device (reginstance-device ri))
+                                                      (eq layout (reginstance-layout ri))))
+                                    (hash-table-values (ri-enumpool-reginstances (enumerated-pool device))))
+                     :test #'eq))
 
 (defun device-register-instances (device)
   "Return all register instances of DEVICE."
-  (remove device (remove-duplicates (hash-table-values (ri-enumpool-reginstances (enumerated-pool device))) :test #'eq)
-          :test-not #'eq :key #'reginstance-device))
+  (remove-duplicates (remove device (hash-table-values (ri-enumpool-reginstances (enumerated-pool device)))
+                             :test-not #'eq :key #'reginstance-device)
+                     :test #'eq))
 
 (defun device-register-instance-name (device layout name &aux (namestring (string name)))
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
