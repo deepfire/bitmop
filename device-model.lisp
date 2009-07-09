@@ -218,13 +218,16 @@
 
    Any variable name can be specified as NIL, which is intepreted as a
    request to ignore that binding."
-  (once-only (device-class)
-    `(iter (for ,layout in (device-class-layouts ,device-class))
-           ,@(when (or reader-name writer-name)
-                   `((for (nil ,reader-name ,writer-name) in (device-class-effective-layout-specs ,device-class))))
-           (iter ,@(when register `((for ,register in (layout-registers ,layout-var))))
-                 ,@(when selector `((for ,selector in (layout-register-selectors ,layout-var))))
-                 ,@body))))
+  (with-gensyms (top)
+    (once-only (device-class)
+      `(iter ,top
+             (for ,layout in (device-class-layouts ,device-class))
+             ,@(when (or reader-name writer-name)
+                     `((for (nil ,reader-name ,writer-name) in (device-class-effective-layout-specs ,device-class))))
+             (iter ,@(when register `((for ,register in (layout-registers ,layout-var))))
+                   ,@(when selector `((for ,selector in (layout-register-selectors ,layout-var))))
+                   ,@(butlast body)
+                   (in ,top (collect ,(lastcar body))))))))
 
 (defun make-invalid-register-access-read-trap (id format-control)
   (lambda (device selector)
@@ -821,15 +824,15 @@ belong to LAYOUT."
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
     (do-device-class-registers (layout reader-name writer-name register selector) device-class
-      (let* ((main-ri-name (device-register-instance-name device layout (name register)))
-             ;;
-             ;; BUG: note how the above BUG relates to this...
-             ;;
-             (id (1+ (hash-table-count (ri-enumpool-reginstances-by-id pool))))
-             (reg-id (register-id (name register)))
-             (instance (make-register-instance :name main-ri-name :register register :device device :selector selector :id id :layout layout
-                                               :reader (device-class-reader device-class reg-id)
-                                               :writer (device-class-writer device-class reg-id))))
+      (lret* ((main-ri-name (device-register-instance-name device layout (name register)))
+              ;;
+              ;; BUG: note how the above BUG relates to this...
+              ;;
+              (id (1+ (hash-table-count (ri-enumpool-reginstances-by-id pool))))
+              (reg-id (register-id (name register)))
+              (instance (make-register-instance :name main-ri-name :register register :device device :selector selector :id id :layout layout
+                                                :reader (device-class-reader device-class reg-id)
+                                                :writer (device-class-writer device-class reg-id))))
         (setf (register-instance-by-id pool id) instance)
         (iter (for ri-name in (cons main-ri-name (mapcar (curry #'device-register-instance-name device layout)
                                                          (reg-aliases register))))
