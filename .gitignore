@@ -8,6 +8,7 @@
 *.fas
 *.fasb
 *.fasl
+*.wx32fsl
 
 .bindings
 
