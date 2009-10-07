@@ -100,14 +100,14 @@
 (defvar *register-formats* (make-hash-table :test 'eq))
 (defvar *register-spaces* (make-hash-table :test 'eq))
 
-(define-container-hash-accessor *spaces* space :if-exists :continue)
-(define-container-hash-accessor *register-formats* register-format :if-exists :continue)
-(define-container-hash-accessor *register-spaces* register-space :type space :if-exists :error :description "register")
-(define-container-hash-accessor :i layout :container-transform layouts :parametrize-container t :if-exists :error)
-(define-container-hash-accessor :i bitfield :container-transform bitfields :parametrize-container t :if-exists :error)
-(define-container-hash-accessor :i bitfield-byte :container-transform bitfield-bytes :parametrize-container t :if-exists :error :type cons)
-(define-container-hash-accessor :i byteval :container-transform bitfield-bytevals :parametrize-container t :if-exists :error)
-(define-container-hash-accessor :i byterevval :container-transform bitfield-byterevvals :parametrize-container t :if-exists :error :type byteval)
+(define-root-container *spaces* space :if-exists :continue)
+(define-root-container *register-formats* register-format :if-exists :continue)
+(define-root-container *register-spaces* register-space :type space :if-exists :error :description "register")
+(define-subcontainer layout :container-slot layouts :if-exists :error)
+(define-subcontainer bitfield :container-slot bitfields :if-exists :error)
+(define-subcontainer bitfield-byte :container-slot bitfield-bytes :if-exists :error :type cons)
+(define-subcontainer byteval :container-slot bytevals :if-exists :error)
+(define-subcontainer byterevval :container-slot byterevvals :if-exists :error :type byteval)
 
 ;; This one stands out: going through dictionaries.
 (declaim (ftype (function (space symbol) register)))

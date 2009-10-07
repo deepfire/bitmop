@@ -109,10 +109,8 @@
 (defstruct (enumeration-pool (:conc-name enumpool-))
   (root (make-hash-table) :type hash-table))
 
-(define-container-hash-accessor :i enumclass :container-transform enumpool-root :parametrize-container t :type enumeration-class :if-exists :error
-                                :iterator do-enumpool-classes)
-(define-container-hash-accessor :i enumclass-ref :container-transform enumclass-root :parametrize-container t :type t :if-exists :error
-                                :iterator do-enumclass-objects)
+(define-subcontainer enumclass :container-slot root :type enumeration-class :if-exists :error :iterator do-enumpool-classes)
+(define-subcontainer enumclass-ref :container-slot root :type t :if-exists :error :iterator do-enumclass-objects)
 
 (defun coerce-to-enumclass (pool enumclass-or-name &key (if-does-not-exist :error))
   (etypecase enumclass-or-name
@@ -172,7 +170,7 @@
 ;;;;
 (defvar *device-classes* (make-hash-table :test 'eq))
 
-(define-container-hash-accessor *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes :if-exists :continue)
+(define-root-container *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes :if-exists :continue)
 
 (defclass device-class (standard-class)
   ((selectors :accessor device-class-selectors :type (vector fixnum) :documentation "ID-indexed register selector lookup table.")
@@ -197,7 +195,7 @@
   (enumeration-class nil :type symbol)
   (layouts nil :type list)
   (effective-layout-specs nil :type list)
-  (constructor nil :type (function (*) struct-device-class)))
+  (constructor nil #-ccl :type #-ccl (function (*) struct-device-class)))
 
 (defmethod device-class-space ((o struct-device-class)) (struct-device-class-space o))
 (defmethod device-class-layouts ((o struct-device-class)) (struct-device-class-layouts o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
@@ -751,10 +749,9 @@
   (reginstances (make-hash-table :test 'eq) :type hash-table)
   (reginstances-by-id (make-hash-table :test 'eq) :type hash-table))
 
-(define-container-hash-accessor :i register-instance :container-transform ri-enumpool-reginstances :type register-instance :if-exists :error
-                                :parametrize-container t :iterator do-register-instances :remover remove-register-instance)
-(define-container-hash-accessor :i register-instance-by-id :container-transform ri-enumpool-reginstances-by-id :type register-instance :if-exists :continue
-                                :parametrize-container t :type-allow-nil-p t)
+(define-subcontainer register-instance :container-slot reginstances :type register-instance :if-exists :error
+                     :iterator do-register-instances :remover remove-register-instance)
+(define-subcontainer register-instance-by-id :container-slot reginstances-by-id :type register-instance :if-exists :continue :type-allow-nil-p t)
 
 (defun reginstance-value (register-instance)
   (declare (type register-instance register-instance))
