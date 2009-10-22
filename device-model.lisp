@@ -655,6 +655,11 @@
         (struct-device-id e) nil
         (enumclass-ref o (enumerated-id e)) nil))
 
+(defun enumerated> (a b)
+  (or (string> (type-of a) (type-of b))
+      (and (eq (type-of a) (type-of b))
+           (> (enumerated-id a) (enumerated-id b)))))
+
 ;;;;
 ;;;; Device access via abstract registers
 ;;;;

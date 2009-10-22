@@ -48,6 +48,7 @@
    #:invalid-device-register
    ;; enumeration
    #:enumerated #:id #:enumerated-id #:enumerated-class #:enumerated-pool #:enumerated-class-name #:do-enumpool-classes #:do-enumclass-objects
+   #:enumerated>
    #:enumeration-class #:enumclass #:enumclass-name #:enumclass-pool #:enumclass-ref #:coerce-to-enumclass
    #:enumclass-add #:enumclass-remove #:enumclass-count
    #:enumeration-pool #:enumpool-add #:enumpool-remove #:enumpool-ref
