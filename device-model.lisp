@@ -369,7 +369,7 @@
                                                            (writers function ,#'irawt-iota #'break)))
             (for old-allocation = (class-current-slot-allocation device-class slot-name))
             (setf (slot-value device-class slot-name)
-                  (cond ((zerop required-length) (make-array 0))
+                  (cond ((zerop required-length) (make-array 0 :element-type type))
                         ((>= old-allocation required-length) (slot-value device-class slot-name))
                         (t (lret ((new-pool (make-or-extend-pool
                                              type initial (if (class-pool-boundp device-class slot-name) (slot-value device-class slot-name) nil))))
