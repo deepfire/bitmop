@@ -27,7 +27,7 @@
 ;;;
 (defvar *devmodel-log-stream* t)
 (defvar *devmodel-synchronous-logging-p* t)
-(defvar *devmodel-verbose-device-init-p* t)
+(defvar *devmodel-verbose-device-init-p* nil)
 
 ;;;
 ;;; Conditions
