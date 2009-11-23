@@ -31,7 +31,7 @@
    #:place-bit #:place-bit-value #:place-bits
    #:test-bits #:test-bits-set
    #:bit-value
-   #:bits))
+   #:interpret-field-value #:fbits #:bits))
 
 (defpackage #:device-model
   (:nicknames :devmodel)

@@ -434,6 +434,34 @@
   (decode-context (space-name space) nil `(,bytename)
     `(ldb ',(bitfield-byte space bytename) ,value)))
 
+(defun interpret-field-value (field byte value)
+  (case value
+    ((t)   (dpb -1 byte 0))
+    ((nil) 0)
+    (t     (ash (if (integerp value)
+                    value
+                    (byteval-value (byteval field value)))
+                (byte-position byte)))))
+
+(defun fbits (bytenames &optional bytevals)
+  "Combined bytevals of bitfields specified by BYTENAMES/BYTEVALS.
+Bytevals default to T, when left completely unspecified."
+  (decode-context (space-name space) nil bytenames
+    (let* ((bytenames (ensure-list bytenames))
+           (bitfields (mapcar (curry #'bitfield space) bytenames))
+           (bytes (mapcar (curry #'bitfield-byte space) bytenames))
+           (bytevals (or bytevals (make-list (length bytes) :initial-element t))))
+      (labels ((cdrec (acc fields bytes vals)
+                 (if fields
+                     (cdrec (logior acc (interpret-field-value (car fields) (car bytes) (car vals))) 
+                            (rest fields)
+                            (rest bytes)
+                            (rest vals))
+                     acc)))
+        (values 
+         (cdrec 0 bitfields bytes bytevals)
+         (bytes-bitmask bytes))))))
+
 (defmacro bits (bytenames &rest bytevals)
   "Combined bytevals of bitfields specified by BYTENAMES/BYTEVALS.
   Bytevals default to T, when left completely unspecified."
