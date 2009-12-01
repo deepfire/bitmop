@@ -327,10 +327,10 @@
   `(progn
      (defstruct (,name (:include struct-device))
        ,@slots)
-     (initialize-struct-device-class (make-struct-device-class :name ,name ,@(when-let ((documentation (second (assoc :documentation options))))
-                                                                               `(:documentation ,documentation))
-                                                               :constructor (function ,(format-symbol (symbol-package name) "MAKE-~A" name)))
-                                     (space ,space) ',(rest (assoc :layouts options)))))
+     (initialize-device-class (make-struct-device-class :name ,name ,@(when-let ((documentation (second (assoc :documentation options))))
+                                                                                `(:documentation ,documentation))
+                                                        :constructor (function ,(format-symbol (symbol-package name) "MAKE-~A" name)))
+                              (space ,space) ',(rest (assoc :layouts options)))))
 
 (defun class-current-slot-allocation (class slot)
   (if (slot-boundp class slot) (length (slot-value class slot)) 0))
