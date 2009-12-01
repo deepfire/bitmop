@@ -270,9 +270,6 @@
 (defun device-class-protocol-p (class)
   (member (class-name class) '(device extended-register-device)))
 
-(defun remove-if-not-subtype-of (type types)
-  (remove-if-not (rcurry #'subtypep type) types))
-
 (defun metaclass-relevant-supers (superclasses)
   (remove-if-not-subtype-of 'device superclasses))
 
