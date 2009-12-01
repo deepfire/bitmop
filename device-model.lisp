@@ -286,7 +286,7 @@
     (append provided-superclasses (unless (metaclass-relevant-supers provided-superclasses)
                                     (list default-superclasses)))))
 
-(defmacro define-device-class (name space provided-superclasses slots &rest options)
+(defmacro define-device-class (name space provided-superclasses slots &body options)
   (let* ((provided-metaclass (second (assoc :metaclass options)))
          (metaclass (compute-metaclass provided-metaclass provided-superclasses)))
     ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
@@ -307,7 +307,7 @@
        (initialize-device-class (find-class ',name) (when ',space (space ',space)) ',(rest (assoc :layouts options))))))
 
 ;; McCLIM-like protocol class stuff :-)
-(defmacro define-protocol-device-class (name space provided-superclasses slots &rest options)
+(defmacro define-protocol-device-class (name space provided-superclasses slots &body options)
   `(progn
      (define-device-class ,name ,space (,@provided-superclasses)
        (,@slots)
