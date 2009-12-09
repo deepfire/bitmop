@@ -1,9 +1,4 @@
-;;; -*- Mode: Lisp -*-
-
-(defpackage :bitmop.system
-  (:use :cl :asdf))
-
-(in-package :bitmop.system)
+;;; -*- Mode: Lisp; indent-tabs-mode: nil -*-
 
 (defsystem :bitmop
   :depends-on (:alexandria :iterate :pergamum :semi-precious)
