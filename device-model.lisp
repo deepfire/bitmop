@@ -270,9 +270,6 @@
 (defun device-class-protocol-p (class)
   (member (class-name class) '(device extended-register-device)))
 
-(defun remove-if-not-subtype-of (type types)
-  (remove-if-not (rcurry #'subtypep type) types))
-
 (defun metaclass-relevant-supers (superclasses)
   (remove-if-not-subtype-of 'device superclasses))
 
@@ -289,7 +286,7 @@
     (append provided-superclasses (unless (metaclass-relevant-supers provided-superclasses)
                                     (list default-superclasses)))))
 
-(defmacro define-device-class (name space provided-superclasses slots &rest options)
+(defmacro define-device-class (name space provided-superclasses slots &body options)
   (let* ((provided-metaclass (second (assoc :metaclass options)))
          (metaclass (compute-metaclass provided-metaclass provided-superclasses)))
     ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
@@ -310,7 +307,7 @@
        (initialize-device-class (find-class ',name) (when ',space (space ',space)) ',(rest (assoc :layouts options))))))
 
 ;; McCLIM-like protocol class stuff :-)
-(defmacro define-protocol-device-class (name space provided-superclasses slots &rest options)
+(defmacro define-protocol-device-class (name space provided-superclasses slots &body options)
   `(progn
      (define-device-class ,name ,space (,@provided-superclasses)
        (,@slots)
@@ -327,10 +324,10 @@
   `(progn
      (defstruct (,name (:include struct-device))
        ,@slots)
-     (initialize-struct-device-class (make-struct-device-class :name ,name ,@(when-let ((documentation (second (assoc :documentation options))))
-                                                                               `(:documentation ,documentation))
-                                                               :constructor (function ,(format-symbol (symbol-package name) "MAKE-~A" name)))
-                                     (space ,space) ',(rest (assoc :layouts options)))))
+     (initialize-device-class (make-struct-device-class :name ,name ,@(when-let ((documentation (second (assoc :documentation options))))
+                                                                                `(:documentation ,documentation))
+                                                        :constructor (function ,(format-symbol (symbol-package name) "MAKE-~A" name)))
+                              (space ,space) ',(rest (assoc :layouts options)))))
 
 (defun class-current-slot-allocation (class slot)
   (if (slot-boundp class slot) (length (slot-value class slot)) 0))
