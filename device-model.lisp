@@ -560,15 +560,6 @@
           (device-readers device) (device-class-readers device-class)
           (device-writers device) (device-class-writers device-class))))
 
-(defmethod initialize-instance :around ((device device) &key &allow-other-keys)
-  (when *devmodel-verbose-device-init-p*
-    (let ((stream (if (eq *devmodel-log-stream* t) *standard-output* *devmodel-log-stream*)))
-      (write (string (type-of device)) :stream stream :escape nil)
-      (write-char #\Space stream)
-      (when *devmodel-synchronous-logging-p*
-        (finish-output stream))))
-  (call-next-method))
-
 (defgeneric class-of-device (device)
   (:documentation "Return the DEVICE's metaclass, or device class structure,
                    depending on its type.")

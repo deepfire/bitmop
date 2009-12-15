@@ -39,7 +39,7 @@
   (:shadowing-import-from :bitmop #:space)
   (:export
    ;; logging
-   #:*devmodel-log-stream* #:*devmodel-synchronous-logging-p* #:*devmodel-verbose-device-init-p*
+   #:*devmodel-log-stream* #:*devmodel-synchronous-logging-p*
    ;; conditions
    #:device-model-condition #:device-model-error #:simple-device-model-error
    #:enumeration-pool-condition #:enumeration-pool-class-missing-error #:enumeration-pool-id-missing-error
