@@ -51,7 +51,7 @@
    #:enumerated>
    #:enumeration-class #:enumclass #:enumclass-name #:enumclass-pool #:enumclass-ref #:coerce-to-enumclass
    #:enumclass-add #:enumclass-remove #:enumclass-count
-   #:enumeration-pool #:enumpool-add #:enumpool-remove #:enumpool-ref
+   #:enumeration-pool #:enumpool-add #:enumpool-remove #:enumpool-ref #:map-enumpool-type
    ;; device metaclasses
    #:device-class #:device-class-space #:device-class-enumeration-class #:device-class-layouts
    #:struct-device-class #:device-class-umbrella

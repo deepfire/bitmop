@@ -142,10 +142,13 @@
                        (ecase if-class-does-not-exist
                          (:error (error 'enumeration-pool-class-missing-error :pool pool :class class))
                          (:create (lret ((enumclass (make-enumeration-class :name class :pool pool)))
-                                    (let ((precedence-sublist (ldiff (class-precedence-list (class-of enumerated))
-                                                                     (or (find-class class)
-                                                                         (error "~@<Class ~A does not exist.~:@>" class)))))
-                                      (dolist (c (list* class (mapcar #'class-name precedence-sublist)))
+                                    (let* ((precedence-list (class-precedence-list (class-of enumerated)))
+                                           (precedence-sublist (ldiff precedence-list
+                                                                      (member (or (find-class class)
+                                                                                  (error "~@<Class ~A does not exist.~:@>" class))
+                                                                              precedence-list)))
+                                           (enumclass-list (list* class (mapcar #'class-name precedence-sublist))))
+                                      (dolist (c enumclass-list)
                                         (setf (enumclass pool c) enumclass)))))))))
     (enumclass-add enumclass enumerated)))
 
@@ -167,6 +170,12 @@
       (ecase if-class-does-not-exist
         (:error (error 'enumeration-pool-class-missing-error :pool pool :class class))
         (:continue nil))))
+
+(defun map-enumpool-type (pool type fn)
+  (when-let ((enumclass (coerce-to-enumclass pool type :if-does-not-exist :continue)))
+    (do-enumclass-objects (value enumclass)
+      (when (typep value type)
+        (collect (funcall fn value))))))
 
 ;;;;
 ;;;; Device metaclasses
@@ -577,14 +586,11 @@
 ;;; 7. device of class X enumd as Y<X, queried as W; Y<X<W    q..x..e  no enumclass -> NIL
 ;;; 8. device of class X enumd as X, queried as W; X<W        q....xe  ...
 
-(defmethod initialize-instance :after ((device device) &key enumeration-class &allow-other-keys)
+(defmethod initialize-instance :after ((device device) &key &allow-other-keys)
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
     (unless space
       (error 'device-type-not-directly-instantiable :type (type-of device)))
-    (let* ((prototype (prototype (type-of device) :if-does-not-exist :continue))
-           (proto))
-      (class-precedence-list device-class))
     (setf (device-selectors device) (device-class-selectors device-class)
           (device-readers device) (device-class-readers device-class)
           (device-writers device) (device-class-writers device-class))))
