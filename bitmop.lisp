@@ -103,11 +103,11 @@
 (define-root-container *spaces* space :if-exists :continue)
 (define-root-container *register-formats* register-format :if-exists :continue)
 (define-root-container *register-spaces* register-space :type space :if-exists :error :description "register")
-(define-subcontainer layout :container-slot layouts :if-exists :error)
-(define-subcontainer bitfield :container-slot bitfields :if-exists :error)
-(define-subcontainer bitfield-byte :container-slot bitfield-bytes :if-exists :error :type cons)
-(define-subcontainer byteval :container-slot bytevals :if-exists :error)
-(define-subcontainer byterevval :container-slot byterevvals :if-exists :error :type byteval)
+(define-subcontainer layout :container-slot layouts :if-exists :continue)
+(define-subcontainer bitfield :container-slot bitfields :if-exists :continue)
+(define-subcontainer bitfield-byte :container-slot bitfield-bytes :if-exists :continue :type cons)
+(define-subcontainer byteval :container-slot bytevals :if-exists :continue)
+(define-subcontainer byterevval :container-slot byterevvals :if-exists :continue :type byteval)
 
 ;; This one stands out: going through dictionaries.
 (declaim (ftype (function (space symbol) register)))
