@@ -257,16 +257,27 @@
 ;;;;    - what information is deduced from register instances /now/?
 ;;;;      ... survey
 ;;;
+(eval-when (:compile-toplevel :load-toplevel)
+  (defun check-namespace-clauses (operation name f)
+    (iter (for (clause . nil) in f)
+          (unless (member clause '(:documentation :register-formats :layouts))
+            (error 'simple-space-definition-error
+                   :space name
+                   :format-control "~@<in: ~A: unknown clause ~S~:@>"
+                   :format-arguments (list operation clause))))))
+
 (defmacro define-namespace (name &body f)
-  (iter (for (clause . nil) in f)
-        (unless (member clause '(:documentation :register-formats :layouts))
-          (error 'simple-space-definition-error
-                 :space name
-                 :format-control "~@<in: ~A: unknown clause ~S~:@>"
-                 :format-arguments (list 'define-namespace clause))))
+  (check-namespace-clauses 'define-namespace name f)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     ,(once-only (name)
-        `(setf (space ,name) (make-instance 'space :name ,name :documentation ,(cadr (assoc :documentation f)))))
+     (setf (space ,name) (make-instance 'space :name ,name :documentation ,(cadr (assoc :documentation f))))
+     (symbol-macrolet ((*space* ,name))
+       ,@(mapcar [cons 'define-register-format] (cdr (assoc :register-formats f)))
+       ,@(mapcar [cons 'define-layout] (cdr (assoc :layouts f))))))
+
+(defmacro extend-namespace (name &body f)
+  (check-namespace-clauses 'extend-namespace name f)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (space ,name)
      (symbol-macrolet ((*space* ,name))
        ,@(mapcar [cons 'define-register-format] (cdr (assoc :register-formats f)))
        ,@(mapcar [cons 'define-layout] (cdr (assoc :layouts f))))))
