@@ -137,14 +137,17 @@
 (defun enumclass-count (enumeration-class)
   (hash-table-count (enumclass-root enumeration-class)))
 
-(defun enumpool-add (pool class enumerated &key (if-class-does-not-exist :create)
-                     &aux (enumclass (coerce-to-enumclass pool class :if-does-not-exist :continue)))
-  (unless enumclass
-    (ecase if-class-does-not-exist
-      (:error (error 'enumeration-pool-class-missing-error :pool pool :class class))
-      (:create (setf enumclass (make-enumeration-class :name class :pool pool)
-                     (enumclass pool class) enumclass))))
-  (enumclass-add enumclass enumerated))
+(defun enumpool-add (pool class enumerated &key (if-class-does-not-exist :create))
+  (let ((enumclass (or (coerce-to-enumclass pool class :if-does-not-exist :continue)
+                       (ecase if-class-does-not-exist
+                         (:error (error 'enumeration-pool-class-missing-error :pool pool :class class))
+                         (:create (lret ((enumclass (make-enumeration-class :name class :pool pool)))
+                                    (let ((precedence-sublist (ldiff (class-precedence-list (class-of enumerated))
+                                                                     (or (find-class class)
+                                                                         (error "~@<Class ~A does not exist.~:@>" class)))))
+                                      (dolist (c (list* class (mapcar #'class-name precedence-sublist)))
+                                        (setf (enumclass pool c) enumclass)))))))))
+    (enumclass-add enumclass enumerated)))
 
 (defun enumpool-remove (pool class enumerated-or-id &key (if-class-does-not-exist :continue)
                       &aux (enumclass (coerce-to-enumclass pool class :if-does-not-exist :continue)))
@@ -296,6 +299,9 @@
           (selectors :allocation :class)
           (readers :allocation :class)
           (writers :allocation :class)
+          ,@(when-let* ((initargs (cdr (assoc :default-initargs options)))
+                        (enumclass (getf initargs :enumeration-class)))
+             `((enumeration-class :allocation :class)))
           ,@(when (eq metaclass 'extended-register-device-class)
                   `((extensions :allocation :class))))
          (:metaclass ,metaclass)
@@ -551,11 +557,34 @@
 
 (defmethod validate-superclass ((class device) (superclass enumerated)) t)
 
-(defmethod initialize-instance :after ((device device) &key &allow-other-keys)
+;;;  Class precedence list: D > C > B > A
+;;;    | a      | b      | c       < Preexisting device of type C enumerated as:
+;;;  --+--------+--------+--------
+;;;  a | #1       #3       #4
+;;;  b | #5       #1       #4
+;;;  c | #6       #6       #2
+;;;  d | #7       #7       #8
+;;;  ^
+;;; Query for type:
+;;;
+;;; Natural constraint: x >= e                                              Methods
+;;; 1. device of class X enumd as Z<X, queried as Z           x....qe  e = q
+;;; 2. device of class X enumd as X, queried as X               xqe    ...
+;;; 3. device of class X enumd as Y<X, queried as Z; Z<Y<X    x..e..q  Q<E, many potential enumeration classes, NIL?
+;;; 4. device of class X enumd as X, queried as Y<X           xe....q  ...
+;;; 5. device of class X enumd as Z<X, queried as Y; Z<Y<X    x..q..e  e = ec(q), because ENUMPOOL-ADD takes care of that
+;;; 6. device of class X enumd as Z<X, queried as X           xq....e  ...
+;;; 7. device of class X enumd as Y<X, queried as W; Y<X<W    q..x..e  no enumclass -> NIL
+;;; 8. device of class X enumd as X, queried as W; X<W        q....xe  ...
+
+(defmethod initialize-instance :after ((device device) &key enumeration-class &allow-other-keys)
   (let* ((device-class (class-of device))
          (space (device-class-space device-class)))
     (unless space
       (error 'device-type-not-directly-instantiable :type (type-of device)))
+    (let* ((prototype (prototype (type-of device) :if-does-not-exist :continue))
+           (proto))
+      (class-precedence-list device-class))
     (setf (device-selectors device) (device-class-selectors device-class)
           (device-readers device) (device-class-readers device-class)
           (device-writers device) (device-class-writers device-class))))
@@ -568,7 +597,7 @@
 (defun device-enumeration-class (device)
   (if (typep device 'struct-device)
       (struct-device-class-enumeration-class (struct-device-class device))
-      (slot-value* device 'enumeration-class (class-name (class-of device)))))
+      (slot-value* device 'enumeration-class (type-of device))))
 
 (defun enumerate-device (pool device)
   (enumpool-add pool (device-enumeration-class device) device))
