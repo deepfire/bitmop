@@ -109,45 +109,6 @@
 (define-subcontainer byteval :container-slot bytevals :if-exists :continue)
 (define-subcontainer byterevval :container-slot byterevvals :if-exists :continue :type byteval)
 
-;; This one stands out: going through dictionaries.
-(declaim (ftype (function (space symbol) register)))
-(defun register (space name)
-  (declare (space space) (keyword name))
-  (translation (space-register-dictionary space) name))
-
-(declaim (ftype (function (symbol) fixnum) register-id))
-(defun register-id (name)
-  (declare (keyword name))
-  (symbol-id (space-register-dictionary (register-space name)) name))
-
-(declaim (ftype (function (space fixnum) register) register-by-id))
-(defun register-by-id (space id)
-  (declare (space space) (fixnum id))
-  (id-value (space-register-dictionary space) id))
-
-(declaim (ftype (function (symbol symbol) fixnum) register-selector))
-(defun register-selector (register-name layout-name)
-  (declare (symbol register-name layout-name))
-  (let* ((space (register-space register-name))
-         (layout (layout space layout-name)))
-    (nth (position register-name (layout-registers layout) :key #'name) (layout-register-selectors layout))))
-
-(defun bytevals-equal-p (b1 b2)
-  (or (eq b1 b2)
-      (and (eq (name b1) (name b2))
-           (equal (byteval-byte b1) (byteval-byte b1))
-           (= (byteval-value b1) (byteval-value b2))
-           (string= (documentation b1) (documentation b2)))))
-
-(defun bitfields-equal-p (b1 b2)
-  (or (eq b1 b2)
-      (and (equal (bitfield-spec b1) (bitfield-spec b2))
-           (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
-
-(defun bitfield-formats (space bitfield-name)
-  "Yield the format of BITFIELD-NAMEd in SPACE"
-  (bitfield-formats% (bitfield space bitfield-name)))
-
 (define-condition bit-notation-error (error) ())
 
 (define-simple-error bit-notation-error)
@@ -197,6 +158,48 @@
    (expected-format :initarg :expected-format))
   (:report (conflicting-bitfield expected-format)
            "~@<Bitfield ~S does not belong to register format ~S.~:@>" conflicting-bitfield expected-format))
+
+;; This one stands out: going through dictionaries.
+(declaim (ftype (function (space symbol) register)))
+(defun register (space name)
+  (declare (space space) (keyword name))
+  (translation (space-register-dictionary space) name))
+
+(declaim (ftype (function (symbol) fixnum) register-id))
+(defun register-id (name)
+  (declare (keyword name))
+  (symbol-id (space-register-dictionary (register-space name)) name))
+
+(declaim (ftype (function (space fixnum) register) register-by-id))
+(defun register-by-id (space id)
+  (declare (space space) (fixnum id))
+  (id-value (space-register-dictionary space) id))
+
+(declaim (ftype (function (symbol symbol) fixnum) register-selector))
+(defun register-selector (register-name layout-name)
+  (declare (symbol register-name layout-name))
+  (let* ((space (register-space register-name))
+         (layout (layout space layout-name :if-does-not-exist :continue)))
+    (unless layout
+      (bit-notation-error "~@<No layout ~A within space ~A referred by register ~A while querying for register's selector.~:@>"
+                          layout-name (space-name space) register-name))
+    (nth (position register-name (layout-registers layout) :key #'name) (layout-register-selectors layout))))
+
+(defun bytevals-equal-p (b1 b2)
+  (or (eq b1 b2)
+      (and (eq (name b1) (name b2))
+           (equal (byteval-byte b1) (byteval-byte b1))
+           (= (byteval-value b1) (byteval-value b2))
+           (string= (documentation b1) (documentation b2)))))
+
+(defun bitfields-equal-p (b1 b2)
+  (or (eq b1 b2)
+      (and (equal (bitfield-spec b1) (bitfield-spec b2))
+           (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
+
+(defun bitfield-formats (space bitfield-name)
+  "Yield the format of BITFIELD-NAMEd in SPACE"
+  (bitfield-formats% (bitfield space bitfield-name)))
 
 (defun define-byteval (bitfield byte value name &optional (documentation ""))
   (lret ((byteval (make-byteval :name name :byte byte :value value :documentation documentation)))
