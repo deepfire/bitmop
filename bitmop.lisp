@@ -175,11 +175,10 @@
   (declare (space space) (fixnum id))
   (id-value (space-register-dictionary space) id))
 
-(declaim (ftype (function (symbol symbol) fixnum) register-selector))
-(defun register-selector (register-name layout-name)
+(declaim (ftype (function (space symbol symbol) fixnum) register-selector))
+(defun register-selector (space layout-name register-name)
   (declare (symbol register-name layout-name))
-  (let* ((space (register-space register-name))
-         (layout (layout space layout-name :if-does-not-exist :continue)))
+  (let ((layout (layout space layout-name :if-does-not-exist :continue)))
     (unless layout
       (bit-notation-error "~@<No layout ~A within space ~A referred by register ~A while querying for register's selector.~:@>"
                           layout-name (space-name space) register-name))
