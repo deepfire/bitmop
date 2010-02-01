@@ -30,7 +30,7 @@
   ((name :accessor space-name :type (or keyword list) :initarg :name)
    (documentation :accessor space-documentation :type string :initarg :documentation)
    (referrers :accessor space-referrers :initform nil :type list)
-   (register-dictionary :accessor space-register-dictionary :initform (make-dictionary) :type dictionary)
+   (register-dictionary :accessor space-register-dictionary :initform (make-aliased-dictionary) :type dictionary)
    (layouts :accessor layouts :initform (make-hash-table) :type hash-table)
    (bitfields :accessor bitfields :initform (make-hash-table) :type hash-table)
    (bitfield-bytes :accessor bitfield-bytes :initform (make-hash-table) :type hash-table)))
@@ -237,8 +237,12 @@
                                    :aliases aliases)))
     ;; YYY: this is a kludge: a proper EVAL-WHEN somewhere is direly needed...
     (unless (register-space name :if-does-not-exist :continue)
-      (setf (register-space name) space))
-    (add-symbol (space-register-dictionary space) name register nil)))
+      (setf (register-space name) space)
+      (dolist (a aliases)
+        (setf (register-space a) space)))
+    (add-symbol (space-register-dictionary space) name register nil)
+    (dolist (a aliases)
+      (add-alias-unchecked (space-register-dictionary space) name a))))
 
 (defun ensure-layout (space name documentation register-specs force-multi force-prefix)
   (let ((selectors (mapcar #'second register-specs)))
