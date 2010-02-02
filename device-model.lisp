@@ -628,6 +628,9 @@
   "Return the layout of a DEVICE's register, who goes by NAME."
   (or (iter (for layout in (device-class-layouts (class-of-device device)))
             (finding layout such-that (find name (layout-registers layout) :key #'name)))
+      ;; slow case..
+      (iter (for layout in (device-class-layouts (class-of-device device)))
+            (finding layout such-that (find name (layout-registers layout) :key #'reg-aliases :test #'member)))
       (case if-does-not-exist
         (:continue nil)
         (:error (error 'invalid-device-register :device device :register name)))))
