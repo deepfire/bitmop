@@ -191,6 +191,7 @@
    #:test-devbits
    ;; register instances
    #:register-instance
+   #:reginstance-aliases
    #:reginstance-device
    #:reginstance-layout
    #:reginstance-register

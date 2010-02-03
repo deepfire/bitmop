@@ -769,6 +769,7 @@
 ;;;;
 (defstruct (register-instance (:include bitmop::docunamed) (:conc-name reginstance-))
   "Instance of register."
+  aliases
   device
   layout
   register
@@ -852,18 +853,20 @@ belong to LAYOUT."
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
     (do-device-class-registers (layout reader-name writer-name register selector) device-class
-      (lret* ((main-ri-name (device-register-instance-name device layout (name register)))
+      (lret* ((ri-aliases (mapcar (curry #'device-register-instance-name device layout)
+                                  (reg-aliases register)))
+              (main-ri-name (device-register-instance-name device layout (name register)))
               ;;
               ;; BUG: note how the above BUG relates to this...
               ;;
               (id (1+ (hash-table-count (ri-enumpool-reginstances-by-id pool))))
               (reg-id (register-id (name register)))
-              (instance (make-register-instance :name main-ri-name :register register :device device :selector selector :id id :layout layout
+              (instance (make-register-instance :name main-ri-name :aliases ri-aliases
+                                                :register register :device device :selector selector :id id :layout layout
                                                 :reader (device-class-reader device-class reg-id)
                                                 :writer (device-class-writer device-class reg-id))))
         (setf (register-instance-by-id pool id) instance)
-        (iter (for ri-name in (cons main-ri-name (mapcar (curry #'device-register-instance-name device layout)
-                                                         (reg-aliases register))))
+        (iter (for ri-name in (cons main-ri-name ri-aliases))
               (assert ri-name)
               (setf (register-instance pool ri-name) instance))))))
 
