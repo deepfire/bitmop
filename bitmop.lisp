@@ -245,8 +245,8 @@
     (dolist (a aliases)
       (add-alias-unchecked (space-register-dictionary space) name a))))
 
-(defun ensure-layout (space name documentation register-specs force-multi force-prefix name-fn)
-  (let ((selectors (mapcar #'second register-specs)))
+(defun ensure-layout (space name documentation offset register-specs force-multi force-prefix name-fn)
+  (let ((selectors (mapcar (compose (curry #'+ offset) #'second) register-specs)))
     (when-let ((bad-selectors (remove-if (of-type 'fixnum) selectors)))
       (error 'invalid-register-selectors-in-layout-definition :space (space-name space) :layout name :bad-selectors bad-selectors))
     (lret ((layout (make-layout :name name :space space :documentation documentation
@@ -255,11 +255,12 @@
             (layout-registers layout) (iter (for (name selector . rest) in register-specs)
                                             (collect (apply #'define-register layout name rest)))))))
 
-(defmacro define-layout (&environment env (name doc &key force-multi force-prefix name-fn) &rest defs)
+(defmacro define-layout (&environment env (name doc &key (offset 0) force-multi force-prefix name-fn) &rest defs)
+  (declare (type integer offset) (type boolean force-multi force-prefix))
   (let ((desugared-name-fn (if (and (consp name-fn) (eq 'lambda (car name-fn)))
                                (rest name-fn)
                                name-fn)))
-    `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ',defs ,force-multi ,force-prefix ,desugared-name-fn)))
+    `(ensure-layout (space ,(space-name (space (environment-space-name-context env)))) ',name ,doc ,offset',defs ,force-multi ,force-prefix ,desugared-name-fn)))
 
 ;;;
 ;;;  o  layout templates
