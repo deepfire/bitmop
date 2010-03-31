@@ -28,7 +28,7 @@
 
 (defclass space ()
   ((name :accessor space-name :type (or keyword list) :initarg :name)
-   (documentation :accessor space-documentation :type string :initarg :documentation)
+   (documentation :accessor space-documentation :type (or null string) :initarg :documentation)
    (referrers :accessor space-referrers :initform nil :type list)
    (register-dictionary :accessor space-register-dictionary :initform (make-aliased-dictionary) :type dictionary)
    (layouts :accessor layouts :initform (make-hash-table) :type hash-table)

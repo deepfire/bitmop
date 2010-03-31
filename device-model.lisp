@@ -180,54 +180,41 @@
 ;;;;
 ;;;; Device metaclasses
 ;;;;
-(defvar *device-classes* (make-hash-table :test 'eq))
+(eval-when (:compile-toplevel :load-toplevel)
+  (defvar *device-classes* (make-hash-table :test 'eq))
 
-(define-root-container *device-classes* device-class :type device-class-umbrella :coercer t :iterator do-device-classes :if-exists :continue)
+  (defparameter *dummy-fixnum-vector* (make-array 0 :element-type 'fixnum))
+  (defparameter *dummy-function-vector* (make-array 0 :element-type 'function))
+  (defparameter *dummy-simple-array-vector* (make-array 0 :element-type 'simple-array))
+  (defparameter *dummy-space* (make-instance 'space :name :dummy :documentation "Dummy space."))
 
-(defclass device-class (standard-class)
-  ((selectors :accessor device-class-selectors :type (vector fixnum) :documentation "ID-indexed register selector lookup table.")
-   (readers :accessor device-class-readers :type (vector function) :documentation "ID-indexed register reader lookup table.")
-   (writers :accessor device-class-writers :type (vector function) :documentation "ID-indexed register writer lookup table.")
-   (space :accessor device-class-space :type (or space null) :initarg :sspace)
-   (layouts :accessor device-class-layouts :type list)
-   (direct-layout-specs :accessor device-class-direct-layout-specs :type list :initform nil :initarg :layouts :documentation "Original layout->accessors alist.")
-   (effective-layout-specs :accessor device-class-effective-layout-specs :type list :documentation "Effective layout->accessors alist."))
-  (:default-initargs
-   :sspace nil))
+  (defstruct (device-class (:include docunamed) (:conc-name device-class-))
+    (parents nil :type list)
+    (selectors *dummy-fixnum-vector* :type (vector fixnum))
+    (readers *dummy-function-vector* :type (vector function))
+    (writers *dummy-function-vector* :type (vector function))
+    (space *dummy-space* :type space)
+    (layouts nil :type list)
+    (enumeration-class nil :type symbol)
+    (direct-layout-specs nil :type list)
+    (effective-layout-specs nil :type list))
 
-(defparameter *dummy-fixnum-vector* (make-array 0 :element-type 'fixnum))
-(defparameter *dummy-function-vector* (make-array 0 :element-type 'function))
-(defparameter *dummy-space* (make-instance 'space :name :dummy :documentation "Dummy space."))
+  (defstruct (struct-device-class (:include device-class))
+    (constructor nil #-ccl :type #-ccl (function (*) device-class)))
 
-(defstruct (struct-device-class (:include docunamed))
-  (selectors *dummy-fixnum-vector* :type (vector fixnum))
-  (readers *dummy-function-vector* :type (vector function))
-  (writers *dummy-function-vector* :type (vector function))
-  (space *dummy-space* :type space)
-  (enumeration-class nil :type symbol)
-  (layouts nil :type list)
-  (effective-layout-specs nil :type list)
-  (constructor nil #-ccl :type #-ccl (function (*) struct-device-class)))
+  (defstruct (extended-register-device-class (:include device-class) (:conc-name device-class-))
+    (extended-layouts nil :type list)
+    (extensions *dummy-simple-array-vector* :type (vector simple-array)))
 
-(defmethod device-class-space ((o struct-device-class)) (struct-device-class-space o))
-(defmethod device-class-layouts ((o struct-device-class)) (struct-device-class-layouts o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
-(defmethod device-class-effective-layout-specs ((o struct-device-class)) (struct-device-class-effective-layout-specs o)) ;; for COMPUTE-INHERITED-LAYOUTS and C-D-R-I
-
-(defparameter *dummy-struct-device-class* (make-struct-device-class :constructor #'make-struct-device-class))
-
-(deftype device-class-umbrella () `(or device-class struct-device-class))
-
-(defclass extended-register-device-class (device-class)
-  ((extended-layouts :accessor device-class-extended-layouts :type list :initarg :extended-layouts)
-   (extensions :accessor device-class-extensions :type (vector simple-array) :documentation "Selector-indexed storage for extended register information.")))
+  (define-root-container *device-classes* device-class :type device-class :coercer t :iterator do-device-classes :if-exists :continue))
 
 (defmacro do-device-class-registers ((layout reader-name writer-name register selector) device-class
                                      &body body &aux (layout-var (or layout (gensym))))
   "Execute BODY with LAYOUT, REGISTER, SELECTOR, READER-NAME and WRITER-NAME
-   bound to corresponding values for every register defined in DEVICE-CLASS.
+bound to corresponding values for every register defined in DEVICE-CLASS.
 
-   Any variable name can be specified as NIL, which is intepreted as a
-   request to ignore that binding."
+Any variable name can be specified as NIL, which is intepreted as a request
+to ignore that binding."
   (with-gensyms (top)
     (once-only (device-class)
       `(iter ,top
@@ -249,22 +236,21 @@
     (declare (ignore selector))
     (error 'invalid-register-write :value value :device device :id id :format-control format-control)))
 
-(defgeneric device-class-register-selector (device-class id)
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-selectors o) i)))
-(defgeneric device-class-reader (device-class id)
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-readers o) i)))
-(defgeneric device-class-writer (device-class id)
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer)) (aref (device-class-writers o) i)))
-(defgeneric set-device-class-reader (device-class id fn)
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function))
-    (setf (aref (device-class-readers o) i) fn))
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
-    (setf (aref (device-class-readers o) i) (make-invalid-register-access-read-trap i "~@<Disabled register read access for device ~S, register id 0x~X, register ~S.~:@>"))))
-(defgeneric set-device-class-writer (device-class id fn)
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn function))
-    (setf (aref (device-class-writers o) i) fn))
-  (:method ((o device-class) (i #+sbcl fixnum #-sbcl integer) (fn null))
-    (setf (aref (device-class-writers o) i) (make-invalid-register-access-write-trap i "~@<Disabled register write access of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"))))
+(defun device-class-protocol-p (device-class)
+  (declare (device-class device-class))
+  (member (name device-class) '(device extended-register-device)))
+(defun device-class-register-selector (device-class i)
+  (aref (device-class-selectors device-class) i))
+(defun device-class-reader (device-class i)
+  (aref (device-class-readers device-class) i))
+(defun device-class-writer (device-class i)
+  (aref (device-class-writers device-class) i))
+(defun set-device-class-reader (device-class i fn)
+  (setf (aref (device-class-readers device-class) i)
+        (or fn (make-invalid-register-access-read-trap i "~@<Disabled register read access for device ~S, register id 0x~X, register ~S.~:@>"))))
+(defun set-device-class-writer (device-class i fn)
+  (setf (aref (device-class-writers device-class) i)
+        (or fn (make-invalid-register-access-write-trap i "~@<Disabled register write access of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"))))
 
 (defsetf device-class-reader set-device-class-reader)
 (defsetf device-class-writer set-device-class-writer)
@@ -276,50 +262,56 @@
   (let* ((space (device-class-space device-class)))
     (register-id-valid-for-device-class-p device-class (symbol-id (space-register-dictionary space) register-name))))
 
-(defun device-class-p (class &aux (type (class-name class)))
-  (and (subtypep type 'device) (not (member type '(device extended-register-device)))))
+(defclass device (enumerated)
+  ((metaclass :reader device-metaclass :allocation :class :initarg :metaclass)
+   (selectors :accessor device-selectors :type (vector fixnum) :allocation :class) ; copied over from class
+   (readers :accessor device-readers :type (vector function) :allocation :class) ; ...
+   (writers :accessor device-writers :type (vector function) :allocation :class) ; ...
+   (enumeration-class :type symbol :initarg :enumeration-class)
+   (backend :accessor backend :type (or null device) :initarg :backend)))
 
-(defun device-class-protocol-p (class)
-  (member (class-name class) '(device extended-register-device)))
-
-(defun metaclass-relevant-supers (superclasses)
-  (remove-if-not-subtype-of 'device superclasses))
-
-(defun compute-metaclass (provided-metaclass provided-superclasses)
-  (let ((default-metaclass (if (first (remove-if-not-subtype-of 'extended-register-device (metaclass-relevant-supers provided-superclasses)))
-                               'extended-register-device-class
-                               'device-class))) ;; note how this properly defaults to 'device-class when there's no M-R-S
-    (or provided-metaclass default-metaclass)))
-
-(defun compute-superclasses (provided-metaclass provided-superclasses)
-  (let ((default-superclasses (case provided-metaclass
-                                (extended-register-device-class 'extended-register-device)
-                                ((device-class nil) 'device))))
-    (append provided-superclasses (unless (metaclass-relevant-supers provided-superclasses)
-                                    (list default-superclasses)))))
+(eval-when (:compile-toplevel :load-toplevel)
+  (setf (device-class 'device) (make-device-class :name 'device)
+        (device-class 'extended-register-device) (make-device-class :name 'extended-register-device)))
 
 (defmacro define-device-class (name space provided-superclasses slots &body options)
-  (let* ((provided-metaclass (second (assoc :metaclass options)))
-         (metaclass (compute-metaclass provided-metaclass provided-superclasses)))
-    ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
+  ;; XXX: shouldn't we check for the cases when user specifies E-R-D-C and DEVICE? Would V-S catch that?
+  (let* ((extendedp (or (some (lambda (x) (subtypep x 'extended-register-device))
+                              provided-superclasses)
+                        (find :extended-layouts options :key #'car)))
+         (type (if extendedp 'extended-register-device 'device))
+         (relevant-parents (iter (for name in provided-superclasses)
+                                 (when-let ((parent (device-class name :if-does-not-exist :continue)))
+                                   (collect parent)))))
     `(progn
-       (defclass ,name ,(compute-superclasses provided-metaclass provided-superclasses)
+       (eval-when (:compile-toplevel :load-toplevel)
+         (unless (device-class ',name :if-does-not-exist :continue)
+           (setf (device-class ',name)
+                 (,(if extendedp
+                       'make-extended-register-device-class
+                       'make-device-class)
+                   :name ',name :space ,(if space `(space ',space) '*dummy-space*)
+                   :parents (mapcar #'device-class ',(or (mapcar #'name relevant-parents)
+                                                         (list type)))
+                   ,@(when-let ((extended-layouts (cdr (assoc :extended-layouts options))))
+                               `(:extended-layouts ',extended-layouts))
+                   ,@(when-let* ((initargs (cdr (assoc :default-initargs options)))
+                                 (enumclass (getf initargs :enumeration-class)))
+                                `(:enumeration-class ,enumclass))))))
+       (defclass ,name ,(append provided-superclasses
+                                (unless relevant-parents
+                                  (list type)))
          (,@slots
+          (metaclass :allocation :class :initform (device-class ',name))
           (selectors :allocation :class)
           (readers :allocation :class)
           (writers :allocation :class)
-          ,@(when-let* ((initargs (cdr (assoc :default-initargs options)))
-                        (enumclass (getf initargs :enumeration-class)))
-             `((enumeration-class :allocation :class)))
-          ,@(when (eq metaclass 'extended-register-device-class)
-                  `((extensions :allocation :class))))
-         (:metaclass ,metaclass)
-         (:space . ,space)
-         ,@(remove-if (lambda (x) (member x '(:metaclass :space))) options :key #'first)) ;; YYY: REMOVE-FROM-ALIST
-       #+ecl
-       (eval-when (:compile-toplevel)
-         (finalize-inheritance (find-class ',name)))
-       (initialize-device-class (find-class ',name) (when ',space (space ',space)) ',(rest (assoc :layouts options))))))
+          ,@(when extendedp
+             `((extensions :allocation :class))))
+         ,@(iter (for (opt . body) in options)
+                 (unless (member opt '(:enumeration-class :layouts :extended-layouts))
+                   (collect (cons opt body)))))
+       (initialize-device-class (device-class ',name) ,(when space `(space ',space)) ',(rest (assoc :layouts options))))))
 
 ;; McCLIM-like protocol class stuff :-)
 (defmacro define-protocol-device-class (name space provided-superclasses slots &body options)
@@ -332,9 +324,7 @@
          (when (eq (class-of o) the-class)
            (error 'protocol-class-instantiation :class (class-of o)))))))
 
-(defmethod validate-superclass ((class device-class) (superclass standard-class)) t)
-(defmethod validate-superclass ((class extended-register-device-class) (superclass device-class)) t)
-
+#+nil
 (defmacro define-struct-device-class (name space slots &rest options)
   `(progn
      (defstruct (,name (:include struct-device))
@@ -345,7 +335,7 @@
                               (space ,space) ',(rest (assoc :layouts options)))))
 
 (defun class-current-slot-allocation (class slot)
-  (if (slot-boundp class slot) (length (slot-value class slot)) 0))
+  (if (slot-value class slot) (length (slot-value class slot)) 0))
 
 (defgeneric class-pool-boundp (class slot)
   (:documentation "Determine, whether CLASS's SLOT is bound.
@@ -354,7 +344,7 @@
   (:method ((o struct-device-class) slot-name)
     (not (member (slot-value o slot-name) (list *dummy-fixnum-vector* *dummy-function-vector*))))
   (:method ((o device-class) slot-name)
-    (slot-boundp o slot-name)))
+    (slot-value o slot-name)))
 
 (defun ensure-device-class-map-storage (device-class space)
   "Ensure that map storage of DEVICE-CLASS is enough to cover all registers 
@@ -362,10 +352,9 @@
   (declare (type (or struct-device-class device-class) device-class))
   (let ((required-length (length (dictionary-id-map (space-register-dictionary space)))))
     (flet ((make-or-extend-pool (type initial-element old-pool)
-             (concatenate (list 'vector type)
+             (concatenate `(vector ,type)
                           (or old-pool (make-array required-length :element-type type :initial-element initial-element))
-                          (unless old-pool
-                            (make-list (- required-length (length old-pool)) :initial-element initial-element))))
+                          (make-list (- required-length (length old-pool)) :initial-element initial-element)))
            (rev-iota (start n)
              (iota n :start (- -1 start) :step -1))
            (irart-iota (start n)
@@ -385,7 +374,7 @@
                         ((>= old-allocation required-length) (slot-value device-class slot-name))
                         (t (lret ((new-pool (make-or-extend-pool
                                              type initial (if (class-pool-boundp device-class slot-name) (slot-value device-class slot-name) nil))))
-                                 (initialise-pool-tail new-pool old-allocation (- required-length old-allocation) initialiser)))))))))
+                             (initialise-pool-tail new-pool old-allocation (- required-length old-allocation) initialiser)))))))))
 
 (defmacro y (lambda-list &body body)
   "Idiomatic, ignore-saving lambda macro."
@@ -412,12 +401,12 @@
 
 (defun map-add-layout-specs (space layout-specs map fn-maker &optional values)
   "Replace sets of entries in MAP, which correspond to successive layout register id sets
-   referenced by LAYOUT-SPECS, with result of application of the function
-   made by FN-MAKER, accordingly with the per-layout information provided in
-   LAYOUT-SPECS and a corresponding member of VALUES, if any.
+referenced by LAYOUT-SPECS, with result of application of the function
+made by FN-MAKER, accordingly with the per-layout information provided in
+LAYOUT-SPECS and a corresponding member of VALUES, if any.
 
-   The replacement value is computed by application of the per-layout made function
-   to the corresponding register id and the old value."
+The replacement value is computed by application of the per-layout made function
+to the corresponding register id and the old value."
   (iter (for (name reader writer) in layout-specs)
         (let* ((layout (layout space name))
                (fn (funcall fn-maker layout reader writer (pop values))))
@@ -432,20 +421,21 @@
 
 (defgeneric initialize-device-class (device-class space direct-layout-specs)
   (:documentation
-   "Initialize DEVICE-CLASS according to SPACE and DIRECT-LAYOUT-SPECS.
+"Initialize DEVICE-CLASS according to SPACE and DIRECT-LAYOUT-SPECS.
 
-   SPACE must be an instance of type SPACE.
-   LAYOUT-SPECS is interpreted as a list of three-element sublists, each one
-   containing a layout name and two accessor specifications, for both the
-   reader and writer to be used for accessing that layout with instances made
-   using DEVICE-CLASS.
+SPACE must be an instance of type SPACE.
+LAYOUT-SPECS is interpreted as a list of three-element sublists, each one
+containing a layout name and two accessor specifications, for both the
+reader and writer to be used for accessing that layout with instances made
+using DEVICE-CLASS.
 
-   Accessor specifications bear one of possible following meanings, 
-   with regard to corresponding accessor pools:
-      - T, the pool is manually managed,
-      - NIL, the pool is disabled, initialized to functions raising an error,
-      - any other symbol, or setf function designator, serving as a name of
-        a function used to initialize the pool.")
+Accessor specifications bear one of possible following meanings, 
+with regard to corresponding accessor pools:
+   - T, the pool is manually managed,
+   - NIL, the pool is disabled, initialized to functions raising an error,
+   - any other symbol, or setf function designator, serving as a name of
+     a function used to initialize the pool.")
+  #+nil
   (:method ((o struct-device-class) space direct-layout-specs)
     (declare (type space space) (type list direct-layout-specs))
     (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs)))
@@ -461,21 +451,19 @@
                 (,readers   ,(y (nil r nil nil) (y (old id) (if (eq r t) old (compute-accessor-function r t id)))))
                 (,writers   ,(y (nil nil w nil) (y (old id) (if (eq w t) old (compute-accessor-function w nil id))))))))))
   (:method ((o device-class) space direct-layout-specs)
-    (declare (type (or null space) space) (type list direct-layout-specs))
-    #+ecl
-    (unless (class-finalized-p o)
-      (finalize-inheritance o))
+    (declare (type (or null space) space) (type list direct-layout-specs) (optimize debug))
     (if space
         (let ((direct-layout-instances (mapcar (compose (curry #'layout space) #'first) direct-layout-specs))
-              (eligible-parents (remove-if-not (lambda (pc) (and (device-class-p pc) (device-class-space pc))) (class-direct-superclasses o))))
-          (when-let ((misspaced (remove-if (curry #'eq space) (mapcar #'device-class-space eligible-parents))))
+              (eligible-parents (device-class-parents o)))
+          (when-let ((misspaced (remove-if (lambda (x) (or (eq x space) (eq x *dummy-space*)))
+                                           (mapcar #'device-class-space eligible-parents))))
             (error 'cross-space-inheritance
-                   :class (class-name o) :required-space (space-name space) :actual-spaces (mapcar #'space-name misspaced)))
+                   :class (name o) :required-space (space-name space) :actual-spaces (mapcar #'space-name misspaced)))
           (multiple-value-bind (inherited-layout-instances inherited-layout-specs) (compute-inherited-layouts direct-layout-instances eligible-parents)
             ;; compute effective layouts specs, effective layouts and register device class
             (setf (device-class-effective-layout-specs o) (append inherited-layout-specs direct-layout-specs)
                   (device-class-layouts o) (append inherited-layout-instances direct-layout-instances)
-                  (device-class (class-name o)) o)
+                  (device-class (name o)) o)
             ;; allocate selector/reader/writer map storage
             (ensure-device-class-map-storage o (setf (device-class-space o) space))
             ;; compute and patch selector/reader/writer maps
@@ -489,21 +477,26 @@
                         (,inherited-layout-specs ,readers   ,(y (nil nil nil p) (y (nil id) (aref (device-class-readers p) id))) ,providing-parents)
                         (,inherited-layout-specs ,writers   ,(y (nil nil nil p) (y (nil id) (aref (device-class-writers p) id))) ,providing-parents)))))))
         (if direct-layout-specs
-            (error 'spaceless-layout-reference :class (class-name o))
+            (error 'spaceless-layout-reference :class (name o))
             ;; Messing with initargs would be way too painful...
             (with-slots (space layouts direct-layout-specs effective-layout-specs selectors readers writers) o
               (setf (values space layouts direct-layout-specs effective-layout-specs selectors readers writers)
-                    (values nil nil nil nil (make-array 0 :element-type 'fixnum)
-                            (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity))))))))
+                    (values *dummy-space* nil nil nil (make-array 0 :element-type 'fixnum)
+                            (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity)))))))
+  (:method :after ((o extended-register-device-class) space direct-layout-specs)
+    (when (not (device-class-protocol-p o))
+      (when-let ((missing (remove-if (rcurry #'assoc (device-class-effective-layout-specs o)) (device-class-extended-layouts o))))
+        (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
+               (name o) missing))
+      ;; XXX: no inheritance for these maps... complicated composition. Not unsurmountable, though.
+      (setf (device-class-extensions o) (build-device-class-extension-map (device-class-space o) (device-class-extended-layouts o))))))
 
 (defun reinitialize-device-class (device-class)
   "Reinitialize DEVICE-CLASS according to its SPACE and DIRECT-LAYOUT-SPECS slots."
   (initialize-device-class device-class (device-class-space device-class) (device-class-direct-layout-specs device-class)))
 
 (defun device-class-corresponds-to-space-and-layouts-p (device-class space-name layout-specs)
-  (when-let ((present-space (if (typep device-class 'struct-device-class)
-                                (device-class-space device-class)
-                                (slot-value* device-class 'space nil))))
+  (when-let ((present-space (device-class-space device-class)))
     (and (eq present-space (when space-name (space space-name)))
          (equal (slot-value* device-class 'direct-layout-specs nil) layout-specs))))
 
@@ -518,13 +511,6 @@
 ;;;
 ;;; XXX: not pretty: hack around non-&allow-other-keys-able initargs...
 ;;;
-(defmethod initialize-instance ((o device-class) &rest initargs)
-  (apply #'call-next-method o (remove-from-plist initargs :space)))
-(defmethod reinitialize-instance ((o device-class) &rest initargs)
-  (apply #'call-next-method o (remove-from-plist initargs :space)))
-(defmethod initialize-instance :after ((o device-class) &key space &allow-other-keys)
-  (declare (ignore space)))
-
 (defun build-device-class-extension-map (space layout-names &aux (length 0))
   (let ((candidate-extensions
          (iter outer
@@ -540,32 +526,12 @@
                (length candidate-extensions))
       (error "~@<Cannot build a register extension map for intersecting layouts: ~S~:@>" layout-names))
     (lret ((extension-map (coerce (make-array length :initial-element (make-array 1 :initial-element nil)) 'vector)))
-          (iter (for (selector . extension) in candidate-extensions)
-                (setf (aref extension-map selector) extension)))))
-
-(defmethod initialize-device-class :after ((o extended-register-device-class) space direct-layouts)
-  (declare (ignore space direct-layouts))
-  (let ((extended-layouts (slot-value* o 'extended-layouts nil)))
-    (when (not (device-class-protocol-p o))
-      (when-let ((missing (remove-if (rcurry #'assoc (device-class-effective-layout-specs o)) extended-layouts)))
-        (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
-               (class-name o) missing))
-      ;; XXX: no inheritance for these maps... complicated composition. Not unsurmountable, though.
-      (setf (device-class-extensions o) (build-device-class-extension-map (device-class-space o) extended-layouts)))))
+      (iter (for (selector . extension) in candidate-extensions)
+            (setf (aref extension-map selector) extension)))))
 
 ;;;;
 ;;;; Devices
 ;;;;
-(defclass device (enumerated)
-  ((selectors :accessor device-selectors :type (vector fixnum) :allocation :class) ; copied over from class
-   (readers :accessor device-readers :type (vector function) :allocation :class)                     ; ...
-   (enumeration-class :type symbol :initarg :enumeration-class)
-   (writers :accessor device-writers :type (vector function) :allocation :class)                     ; ...
-   (backend :accessor backend :type (or null device) :initarg :backend))
-  (:metaclass device-class))
-
-(defmethod validate-superclass ((class device) (superclass enumerated)) t)
-
 ;;;  Class precedence list: D > C > B > A
 ;;;    | a      | b      | c       < Preexisting device of type C enumerated as:
 ;;;  --+--------+--------+--------
@@ -587,7 +553,7 @@
 ;;; 8. device of class X enumd as X, queried as W; X<W        q....xe  ...
 
 (defmethod initialize-instance :after ((device device) &key &allow-other-keys)
-  (let* ((device-class (class-of device))
+  (let* ((device-class (device-metaclass device))
          (space (device-class-space device-class)))
     (unless space
       (error 'device-type-not-directly-instantiable :type (type-of device)))
@@ -598,7 +564,7 @@
 (defgeneric class-of-device (device)
   (:documentation "Return the DEVICE's metaclass, or device class structure,
                    depending on its type.")
-  (:method ((o device)) (class-of o)))
+  (:method ((o device)) (device-metaclass o)))
 
 (defun device-enumeration-class (device)
   (if (typep device 'struct-device)
@@ -610,7 +576,7 @@
 
 (defun device-space (device)
   (declare (type device device))
-  (device-class-space (class-of device)))
+  (device-class-space (class-of-device device)))
 
 (defgeneric device-reader (device id)
   (:method ((device device) register-id) (aref (device-readers device) register-id)))
@@ -646,21 +612,18 @@
   (print-device-object device stream))
 
 (defclass slave-device (device)
-  ((master :accessor slave-device-master :initarg :master))
-  (:metaclass device-class))
+  ((master :accessor slave-device-master :initarg :master)))
 
 (defclass master-device (device)
-  ((slaves :accessor master-device-slaves :initarg :slaves))
-  (:metaclass device-class))
+  ((slaves :accessor master-device-slaves :initarg :slaves)))
 
 (defgeneric master-device-slaves (master))
 
 (defclass extended-register-device (device)
-  ((extensions :accessor device-extensions :type (vector simple-array) :allocation :class)) ; copied over from class
-  (:metaclass extended-register-device-class))
+  ((extensions :accessor device-extensions :type (vector simple-array) :allocation :class)))
 
 (defmethod initialize-instance :after ((device extended-register-device) &key &allow-other-keys)
-  (setf (device-extensions device) (device-class-extensions (class-of device))))
+  (setf (device-extensions device) (device-class-extensions (class-of-device device))))
 
 (defstruct struct-device
   (class nil :type struct-device-class)
@@ -930,7 +893,4 @@ belong to LAYOUT."
 ;;;; Das init
 ;;;;
 (defun init-device-model ()
-  "Forget all known device and register instances."
-  (do-device-classes (device-class)
-    (unless (class-finalized-p device-class)
-      (finalize-inheritance device-class))))
+  "Forget all known device and register instances.")
