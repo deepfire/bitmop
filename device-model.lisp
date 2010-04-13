@@ -858,13 +858,21 @@ belong to LAYOUT."
       (mapc (curry #'remove-register-instance pool) (cons ri-name (mapcar (curry #'device-register-instance-name device layout)
                                                                           (reg-aliases register)))))))
 
+(defgeneric create-device-register-instance (device layout register register-inlayout-nr register-inspace-id selector name aliases id)
+  (:method ((o device) layout register register-inlayout-nr register-inspace-id selector name aliases id &aux
+            (device-class (class-of-device o)))
+    (make-register-instance :device o :layout layout :register register :selector selector
+                            :name name :aliases aliases :id id 
+                            :reader (device-class-reader device-class register-inspace-id)
+                            :writer (device-class-writer device-class register-inspace-id))))
+
 (defun create-device-register-instances (device &aux (device-class (class-of-device device)) (pool (enumerated-pool device)))
   "Walk the DEVICE's layouts and spawn the broodlings."
   (with-retry-restarts ((retry ()
                           :test (lambda (c) (typep c 'bad-redefinition))
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
-    (do-device-class-registers (layout reader-name writer-name register selector) device-class
+    (do-device-class-registers (layout reader-name writer-name register selector inlayout-nr) device-class
       (lret* ((ri-aliases (mapcar (curry #'device-register-instance-name device layout)
                                   (reg-aliases register)))
               (main-ri-name (device-register-instance-name device layout (name register)))
@@ -872,11 +880,8 @@ belong to LAYOUT."
               ;; BUG: note how the above BUG relates to this...
               ;;
               (id (1+ (hash-table-count (ri-enumpool-reginstances-by-id pool))))
-              (reg-id (register-id (device-space device) (name register)))
-              (instance (make-register-instance :name main-ri-name :aliases ri-aliases
-                                                :register register :device device :selector selector :id id :layout layout
-                                                :reader (device-class-reader device-class reg-id)
-                                                :writer (device-class-writer device-class reg-id))))
+              (reg-inspace-id (register-id (device-space device) (name register)))
+              (instance (create-device-register-instance device layout register inlayout-nr reg-inspace-id selector main-ri-name ri-aliases id)))
         (setf (register-instance-by-id pool id) instance)
         (iter (for ri-name in (cons main-ri-name ri-aliases))
               (assert ri-name)
