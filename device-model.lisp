@@ -208,7 +208,7 @@
 
   (define-root-container *device-classes* device-class :type device-class :coercer t :iterator do-device-classes :if-exists :continue))
 
-(defmacro do-device-class-registers ((layout reader-name writer-name register selector) device-class
+(defmacro do-device-class-registers ((layout reader-name writer-name &optional register selector inlayout-register-nr) device-class
                                      &body body &aux (layout-var (or layout (gensym))))
   "Execute BODY with LAYOUT, REGISTER, SELECTOR, READER-NAME and WRITER-NAME
 bound to corresponding values for every register defined in DEVICE-CLASS.
@@ -223,6 +223,7 @@ to ignore that binding."
                      `((for (nil ,reader-name ,writer-name) in (device-class-effective-layout-specs ,device-class))))
              (iter ,@(when register `((for ,register in (layout-registers ,layout-var))))
                    ,@(when selector `((for ,selector in (layout-register-selectors ,layout-var))))
+                   ,@(when inlayout-register-nr `((for ,inlayout-register-nr from 0)))
                    ,@(butlast body)
                    (in ,top (collect ,(lastcar body))))))))
 
