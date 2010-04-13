@@ -49,6 +49,7 @@
    #:definition-error
    #:space-definition-error
    #:simple-space-definition-error
+   #:register-not-structured
    #:bitfields-divergent
    #:bitfields-unknown
    #:invalid-register-selectors-in-layout-definition

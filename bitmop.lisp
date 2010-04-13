@@ -129,6 +129,11 @@
   ((bitfields :initarg :bitfields))
   (:report (bitfields) "~@<Unable to find a space for bitfields: ~{ ~A~}~:@>" bitfields))
 
+(define-reported-condition register-not-structured (bit-notation-error)
+  ((name :initarg :name))
+  (:report (name)
+           "~@<Register ~S has no structure.~:@>" name))
+
 (define-reported-condition invalid-register-selectors-in-layout-definition (space-definition-error)
   ((layout :initarg :layout)
    (bad-selectors :initarg :bad-selectors))
@@ -397,7 +402,8 @@
                            `(find-space-with-bytenames (ensure-list ,bytenames))))
               (,spacename (space-name ,space))
               (,format (if ,regname
-                           (reg-format (register ,space ,regname))
+                           (or (reg-format (register ,space ,regname))
+                               (error 'register-not-structured :name ,regname))
                            (if-let ((formats (formats-with-bytenames ,space (ensure-list ,bytenames))))
                              (first formats) ; Bytenames were collated to be equivalent, so ambiguity is harmless.
                              (error 'bitfields-divergent-in-space :bitfields ,bytenames :space ,space))))
