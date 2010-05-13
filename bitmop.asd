@@ -11,6 +11,8 @@
    ;;
    (:file "bitmop" :depends-on ("utils"))
    ;;
-   (:file "device-model" :depends-on ("bitmop"))
+   (:file "device-class" :depends-on ("bitmop"))
+   ;;
+   (:file "device-model" :depends-on ("device-class"))
    ;;
    (:file "sugar" :depends-on ("device-model"))))

@@ -180,37 +180,6 @@
       (when (typep value type)
         (collect (funcall fn value))))))
 
-;;;;
-;;;; Device metaclasses
-;;;;
-(eval-when (:compile-toplevel :load-toplevel)
-  (defvar *device-classes* (make-hash-table :test 'eq))
-
-  (defparameter *dummy-fixnum-vector* (make-array 0 :element-type 'fixnum))
-  (defparameter *dummy-function-vector* (make-array 0 :element-type 'function))
-  (defparameter *dummy-simple-array-vector* (make-array 0 :element-type 'simple-array))
-  (defparameter *dummy-space* (make-instance 'space :name :dummy :documentation "Dummy space."))
-
-  (defstruct (device-class (:include docunamed) (:conc-name device-class-))
-    (parents nil :type list)
-    (selectors *dummy-fixnum-vector* :type (vector fixnum))
-    (readers *dummy-function-vector* :type (vector function))
-    (writers *dummy-function-vector* :type (vector function))
-    (space *dummy-space* :type space)
-    (layouts nil :type list)
-    (enumeration-class nil :type symbol)
-    (direct-layout-specs nil :type list)
-    (effective-layout-specs nil :type list))
-
-  (defstruct (struct-device-class (:include device-class))
-    (constructor nil #-ccl :type #-ccl (function (*) device-class)))
-
-  (defstruct (extended-register-device-class (:include device-class) (:conc-name device-class-))
-    (extended-layouts nil :type list)
-    (extensions *dummy-simple-array-vector* :type (vector simple-array)))
-
-  (define-root-container *device-classes* device-class :type device-class :coercer t :iterator do-device-classes :if-exists :continue))
-
 (defmacro do-device-class-registers ((layout reader-name writer-name &optional register selector inlayout-register-nr) device-class
                                      &body body &aux (layout-var (or layout (gensym))))
   "Execute BODY with LAYOUT, REGISTER, SELECTOR, READER-NAME and WRITER-NAME
@@ -488,6 +457,7 @@ with regard to corresponding accessor pools:
                     (values *dummy-space* nil nil nil (make-array 0 :element-type 'fixnum)
                             (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity)))))))
   (:method :after ((o extended-register-device-class) space direct-layout-specs)
+    (declare (ignore space direct-layout-specs))
     (when (not (device-class-protocol-p o))
       (when-let ((missing (remove-if (rcurry #'assoc (device-class-effective-layout-specs o)) (device-class-extended-layouts o))))
         (error "~@<During initialization of extended register device class ~S: unknown layouts were specified to be extended: ~S~:@>"
@@ -864,6 +834,7 @@ belong to LAYOUT."
 (defgeneric create-device-register-instance (device layout register register-inlayout-nr register-inspace-id selector name aliases id)
   (:method ((o device) layout register register-inlayout-nr register-inspace-id selector name aliases id &aux
             (device-class (class-of-device o)))
+    (declare (ignore register-inlayout-nr))
     (make-register-instance :device o :layout layout :register register :selector selector
                             :name name :aliases aliases :id id 
                             :reader (device-class-reader device-class register-inspace-id)
@@ -875,7 +846,7 @@ belong to LAYOUT."
                           :test (lambda (c) (typep c 'bad-redefinition))
                           :report "Purge device register instances and retry their creation."
                           (purge-device-register-instances device)))
-    (do-device-class-registers (layout reader-name writer-name register selector inlayout-nr) device-class
+    (do-device-class-registers (layout nil nil register selector inlayout-nr) device-class
       (lret* ((ri-aliases (mapcar (curry #'device-register-instance-name device layout)
                                   (reg-aliases register)))
               (main-ri-name (device-register-instance-name device layout (name register)))

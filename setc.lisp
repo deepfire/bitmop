@@ -52,7 +52,7 @@
 (defmacro setc (&body body)
   "A drop-in replacement for SETF which is given full control over
    evaluation of both the right-hand and left-hand sides of the place-setting form."
-  (let ((expansions (loop :for (place value . rest) :on body :by #'cddr
+  (let ((expansions (loop :for (place value) :on body :by #'cddr
                        :collect (get-setc-expansion place value))))
     (if (rest expansions)
         `(progn ,@expansions)
