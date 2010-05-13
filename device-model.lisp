@@ -142,7 +142,10 @@
                        (ecase if-class-does-not-exist
                          (:error (error 'enumeration-pool-class-missing-error :pool pool :class class))
                          (:create (lret ((enumclass (make-enumeration-class :name class :pool pool)))
-                                    (let* ((precedence-list (class-precedence-list (class-of enumerated)))
+                                    (let* ((precedence-list (#+ccl ccl:class-precedence-list
+                                                             #+sbcl sb-mop:class-precedence-list
+                                                             #+ecl clos:class-precedence-list
+                                                             (class-of enumerated)))
                                            (precedence-sublist (ldiff precedence-list
                                                                       (member (or (find-class class)
                                                                                   (error "~@<Class ~A does not exist.~:@>" class))
