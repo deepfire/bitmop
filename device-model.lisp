@@ -591,8 +591,6 @@ with regard to corresponding accessor pools:
 (defclass master-device (device)
   ((slaves :accessor master-device-slaves :initarg :slaves)))
 
-(defgeneric master-device-slaves (master))
-
 (defclass extended-register-device (device)
   ((extensions :accessor device-extensions :type (vector simple-array) :allocation :class)))
 
