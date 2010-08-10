@@ -342,7 +342,7 @@
                    (unify-namespaces ',nsnames))))
        (define-symbol-macro *space* ,name))))
 
-(defun bitfield-decode (bitfield value &key (symbolise-unknowns t))
+(defun decode-using-bitfield (bitfield value &key (symbolise-unknowns t))
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
   (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
          (let* ((val (ldb (bitfield-spec bitfield) value)))
@@ -356,10 +356,10 @@
         (t
          (ldb-test (bitfield-spec bitfield) value))))
 
-(defun format-decode (format value &key (symbolise-unknowns t))
+(defun decode-using-format (format value &key (symbolise-unknowns t))
   (declare (type register-format format) (type (unsigned-byte 32) value))
   (iter (for bitfield in (format-bitfields format))
-        (collect (cons (name bitfield) (bitfield-decode bitfield value :symbolise-unknowns symbolise-unknowns)))))
+        (collect (cons (name bitfield) (decode-using-bitfield bitfield value :symbolise-unknowns symbolise-unknowns)))))
 
 ;;;;
 ;;;;
@@ -418,8 +418,8 @@
 
 (defmacro decode (fmtname value &key (symbolise-unknowns t))
   (if (constant-p fmtname) ;; we won't do the same for other obvious cases
-      `(format-decode (load-time-value (register-format ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
-      `(format-decode (register-format ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns)))
+      `(decode-using-format (load-time-value (register-format ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
+      `(decode-using-format (register-format ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns)))
 
 (defmacro place-bit (place regname bytename)
   (decode-context (space-name space) regname `(,bytename)

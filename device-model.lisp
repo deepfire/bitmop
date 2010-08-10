@@ -655,14 +655,14 @@ with regard to corresponding accessor pools:
 (defmacro devbit-decode (device regname bytename)
   (decode-context (space-name space bitfield) regname `(,bytename)
     (once-only (device)
-     `(bitfield-decode (load-time-value (bitfield (space ',space-name) ,bytename))
-                       (device-register ,device (register-id (device-space ,device) ,regname))))))
+      `(decode-using-bitfield (load-time-value (bitfield (space ',space-name) ,bytename))
+                              (device-register ,device (register-id (device-space ,device) ,regname))))))
 
 (defmacro devreg-decode (device regname)
   (decode-context (space-name space bitfield fmtname) regname ()
     (once-only (device)
-     `(format-decode (load-time-value (register-format ,fmtname))
-                     (device-register ,device (register-id (device-space ,device) ,regname))))))
+     `(decode-using-format (load-time-value (register-format ,fmtname))
+                           (device-register ,device (register-id (device-space ,device) ,regname))))))
 
 (defmacro devbit (device regname bytename)
   (decode-context (space-name space) regname `(,bytename)
