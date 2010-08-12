@@ -78,6 +78,7 @@
    #:decode-using-bitfield
    #:decode-using-format
    #:decode
+   #:decode-bitfield
    #:decode-context
    #:place-bit
    #:place-bit-value

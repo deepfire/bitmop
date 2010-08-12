@@ -421,6 +421,12 @@
       `(decode-using-format (load-time-value (register-format ,fmtname)) ,value :symbolise-unknowns ,symbolise-unknowns)
       `(decode-using-format (register-format ,fmtname) ,value :symbolise-unknowns ,symbolise-unknowns)))
 
+(defmacro decode-bitfield (bitfield value &key (symbolise-unknowns t))
+  (if (constant-p bitfield)
+      (decode-context (space-name space) nil `(,bitfield)
+        `(decode-using-bitfield (load-time-value (bitfield (space ,space-name) ,bitfield)) ,value :symbolise-unknowns ,symbolise-unknowns))
+      (bit-notation-error "~@<Cannot decode values with non-constant field name.~@:>")))
+
 (defmacro place-bit (place regname bytename)
   (decode-context (space-name space) regname `(,bytename)
     `(ldb-test ',(bitfield-byte space bytename) ,place)))
