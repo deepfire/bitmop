@@ -756,6 +756,14 @@ with regard to corresponding accessor pools:
   (when-let ((layout (device-register-layout device name :if-does-not-exist if-does-not-exist)))
     (register-instance (enumerated-pool device) (device-register-instance-name device layout name))))
 
+(defun device-layout-register-instance-by-selector (device layout selector)
+  "Find the register instance of DEVICE, whose abstract register
+has SELECTOR within LAYOUT."
+  (find-if (lambda (ri) (and (eq  device   (reginstance-device ri))
+                             (eq  layout   (reginstance-layout ri))
+                             (eql selector (reginstance-selector ri))))
+           (hash-table-values (ri-enumpool-reginstances (enumerated-pool device)))))
+
 (defun device-layout-register-instances (device layout)
   "Return all register instances of DEVICE, whose abstract registers
 belong to LAYOUT."

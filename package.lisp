@@ -212,6 +212,7 @@
    #:reginstance-value
    #:set-reginstance-value
    #:device-register-instance
+   #:device-layout-register-instance-by-selector
    #:device-layout-register-instances
    #:device-register-instances
    #:default-register-instance-name
