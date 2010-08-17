@@ -75,6 +75,7 @@
    #:space-name-context
    #:set-namespace
    ;; core API
+   #:decode-bitfield-value-using-bitfield
    #:decode-using-bitfield
    #:decode-using-format
    #:decode

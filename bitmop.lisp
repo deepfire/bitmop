@@ -342,15 +342,18 @@
                    (unify-namespaces ',nsnames))))
        (define-symbol-macro *space* ,name))))
 
+(defun decode-bitfield-value-using-bitfield (bitfield field-value &optional (symbolise-unknowns t))
+  (if-let ((field (byterevval bitfield field-value :if-does-not-exist :continue)))
+    (name field)
+    (if symbolise-unknowns
+        (format-symbol :keyword "UNKNOWN-VALUE-~B" field-value)
+        field-value)))
+
 (defun decode-using-bitfield (bitfield value &key (symbolise-unknowns t))
   (declare (type bitfield bitfield) (type (unsigned-byte 32) value))
   (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
          (let* ((val (ldb (bitfield-spec bitfield) value)))
-           (if-let ((field (byterevval bitfield val :if-does-not-exist :continue)))
-                   (name field)
-                   (if symbolise-unknowns
-                       (format-symbol :keyword "UNKNOWN-VALUE-~B" val)
-                       val))))
+           (decode-bitfield-value-using-bitfield bitfield val symbolise-unknowns)))
         ((> (car (bitfield-spec bitfield)) 1) ;; bitfield-wide-p?
          (ldb (bitfield-spec bitfield) value))
         (t
@@ -424,7 +427,7 @@
 (defmacro decode-bitfield (bitfield value &key (symbolise-unknowns t))
   (if (constant-p bitfield)
       (decode-context (space-name space) nil `(,bitfield)
-        `(decode-using-bitfield (load-time-value (bitfield (space ,space-name) ,bitfield)) ,value :symbolise-unknowns ,symbolise-unknowns))
+        `(decode-bitfield-value-using-bitfield (load-time-value (bitfield (space ,space-name) ,bitfield)) ,value ,symbolise-unknowns))
       (bit-notation-error "~@<Cannot decode values with non-constant field name.~@:>")))
 
 (defmacro place-bit (place regname bytename)
