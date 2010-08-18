@@ -729,6 +729,7 @@ with regard to corresponding accessor pools:
   register
   selector
   reader writer
+  space-id
   id)
 
 (defstruct (reginstance-enumeration-pool (:include enumeration-pool) (:conc-name ri-enumpool-))
@@ -842,7 +843,7 @@ belong to LAYOUT."
             (device-class (class-of-device o)))
     (declare (ignore register-inlayout-nr))
     (make-register-instance :device o :layout layout :register register :selector selector
-                            :name name :aliases aliases :id id 
+                            :name name :aliases aliases :id id :space-id register-inspace-id
                             :reader (device-class-reader device-class register-inspace-id)
                             :writer (device-class-writer device-class register-inspace-id))))
 

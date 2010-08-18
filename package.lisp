@@ -206,6 +206,7 @@
    #:reginstance-reader
    #:reginstance-writer
    #:reginstance-id
+   #:reginstance-space-id
    #:reginstance-enumeration-pool
    #:make-reginstance-enumeration-pool
    #:register-instance-by-id
