@@ -199,7 +199,7 @@
 
 (defun bitfields-equal-p (b1 b2)
   (or (eq b1 b2)
-      (and (equal (bitfield-spec b1) (bitfield-spec b2))
+      (and (byte (bitfield-spec b1) (bitfield-spec b2))
            (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
 
 (defun bitfield-formats (space bitfield-name)
@@ -354,7 +354,7 @@
   (cond ((plusp (hash-table-count (bitfield-bytevals bitfield))) ;; bitfield-enumerated-p?
          (let* ((val (ldb (bitfield-spec bitfield) value)))
            (decode-bitfield-value-using-bitfield bitfield val symbolise-unknowns)))
-        ((> (car (bitfield-spec bitfield)) 1) ;; bitfield-wide-p?
+        ((> (byte-size (bitfield-spec bitfield)) 1) ;; bitfield-wide-p?
          (ldb (bitfield-spec bitfield) value))
         (t
          (ldb-test (bitfield-spec bitfield) value))))
@@ -412,7 +412,7 @@
                              (error 'bitfields-divergent-in-space :bitfields ,bytenames :space ,space))))
               ,@(when fmtname `((,fmtname (name ,format))))
               ,@(when bytenames `((,newbytenames (ensure-list ,bytenames))))
-              ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (car ,newbytenames))))))
+              ,@(when (and bitfield bytenames) `((,bitfield (bitfield ,space (first ,newbytenames))))))
          (declare (ignorable ,spacename ,space ,format
                              ,@(when bytenames `(,newbytenames))
                              ,@(when (and bitfield bytenames) `(,bitfield))))
@@ -495,7 +495,7 @@ Bytevals default to T, when left completely unspecified."
            (bytevals (or bytevals (make-list (length bytes) :initial-element t))))
       (labels ((cdrec (acc fields bytes vals)
                  (if fields
-                     (cdrec (logior acc (interpret-field-value (car fields) (car bytes) (car vals))) 
+                     (cdrec (logior acc (interpret-field-value (first fields) (first bytes) (first vals))) 
                             (rest fields)
                             (rest bytes)
                             (rest vals))
