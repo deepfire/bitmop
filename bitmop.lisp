@@ -199,7 +199,7 @@
 
 (defun bitfields-equal-p (b1 b2)
   (or (eq b1 b2)
-      (and (byte (bitfield-spec b1) (bitfield-spec b2))
+      (and (equal (bitfield-spec b1) (bitfield-spec b2))
            (every #'bytevals-equal-p (hash-table-values (bitfield-bytevals b1)) (hash-table-values (bitfield-bytevals b1))))))
 
 (defun bitfield-formats (space bitfield-name)
