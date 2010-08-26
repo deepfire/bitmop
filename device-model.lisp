@@ -238,8 +238,8 @@ to ignore that binding."
 (defclass device (enumerated)
   ((metaclass :reader device-metaclass :allocation :class :initarg :metaclass)
    (selectors :accessor device-selectors :type (vector fixnum) :allocation :class) ; copied over from class
-   (readers :accessor device-readers :type (vector function) :allocation :class) ; ...
-   (writers :accessor device-writers :type (vector function) :allocation :class) ; ...
+   (readers :accessor device-readers :type (vector (or symbol function)) :allocation :class) ; ...
+   (writers :accessor device-writers :type (vector (or symbol function)) :allocation :class) ; ...
    (enumeration-class :type symbol :initarg :enumeration-class)
    (backend :accessor backend :type (or null device) :initarg :backend)))
 
@@ -339,8 +339,8 @@ to ignore that binding."
            (initialise-pool-tail (pool start n initialiser)
              (setf (subseq pool start) (funcall initialiser start n))))
       (iter (for (slot-name type initialiser initial) in `((selectors fixnum ,#'rev-iota 0)
-                                                           (readers function ,#'irart-iota #'break)
-                                                           (writers function ,#'irawt-iota #'break)))
+                                                           (readers (or symbol function) ,#'irart-iota #'break)
+                                                           (writers (or symbol function) ,#'irawt-iota #'break)))
             (for old-allocation = (class-current-slot-allocation device-class slot-name))
             (setf (slot-value device-class slot-name)
                   (cond ((zerop required-length) (make-array 0 :element-type type))
@@ -362,15 +362,20 @@ to ignore that binding."
         (funcall fn (symbol-id dictionary (name register)))))
 
 (defun compute-accessor-function (name reader-p id)
-  (if (typep name 'boolean) 
-      (if reader-p
-          (make-invalid-register-access-read-trap id (if name
-                                                         "~@<Not-yet-initialised register read for device ~S, register id 0x~X, register ~S.~:@>"
-                                                         "~@<Undefined register read for device ~S, register id 0x~X, register ~S.~:@>"))
-          (make-invalid-register-access-write-trap id (if name
-                                                         "~@<Not-yet-initialised register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"
-                                                         "~@<Undefined register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>")))
-      (fdefinition name)))
+  (cond ((typep name 'boolean) 
+         (if reader-p
+             (make-invalid-register-access-read-trap id (if name
+                                                            "~@<Not-yet-initialised register read for device ~S, register id 0x~X, register ~S.~:@>"
+                                                            "~@<Undefined register read for device ~S, register id 0x~X, register ~S.~:@>"))
+             (make-invalid-register-access-write-trap id (if name
+                                                             "~@<Not-yet-initialised register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"
+                                                             "~@<Undefined register write of ~8,'0X for device ~S, register id 0x~X, register ~S.~:@>"))))
+        ((fboundp name)
+         (fdefinition name))
+        ((symbolp name)
+         name)
+        (t
+         (device-model-error "~@<Invalid accessor function specifier ~S, must be either boolean or a symbol.~:@>" name))))
 
 (defun map-add-layout-specs (space layout-specs map fn-maker &optional values)
   "Replace sets of entries in MAP, which correspond to successive layout register id sets
@@ -455,7 +460,8 @@ with regard to corresponding accessor pools:
             (with-slots (space layouts direct-layout-specs effective-layout-specs selectors readers writers) o
               (setf (values space layouts direct-layout-specs effective-layout-specs selectors readers writers)
                     (values *dummy-space* nil nil nil (make-array 0 :element-type 'fixnum)
-                            (make-array 0 :element-type 'function :initial-element #'identity) (make-array 0 :element-type 'function :initial-element #'identity)))))))
+                            (make-array 0 :element-type '(or symbol function) :initial-element #'identity)
+                            (make-array 0 :element-type '(or symbol function) :initial-element #'identity)))))))
   (:method :after ((o extended-register-device-class) space direct-layout-specs)
     (declare (ignore space direct-layout-specs))
     (when (not (device-class-protocol-p o))
