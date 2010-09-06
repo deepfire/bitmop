@@ -829,22 +829,51 @@ belong to LAYOUT."
                              :test-not #'eq :key #'reginstance-device)
                      :test #'eq))
 
-(defun device-register-instance-name (device layout name &aux (namestring (string name)))
+(defun default-register-instance-name (device layout name)
   "Complete a register instance name given NAME and LAYOUT of DEVICE."
-  (let* ((dot-posn (position #\. namestring))
+  (let* ((dot-posn (position #\. name))
          (qualify (or (layout-force-prefix layout)
                       (layout-force-multi layout)
                       (> (enumclass-count (enumerated-class device)) 1))))
-    (make-keyword (concatenate 'string
-                               (let ((enumclass-namestring (string (enumclass-name (enumerated-class device)))))
-                                 (cond ((layout-force-prefix layout) enumclass-namestring)
-                                       (dot-posn (subseq namestring 0 dot-posn))
-                                       (qualify enumclass-namestring)))
-                               (when qualify (write-to-string (enumerated-id device) :base 10))
-                               (when (or dot-posn qualify) ".")
-                               (if (and (not (layout-force-prefix layout)) dot-posn)
-                                   (subseq namestring (1+ dot-posn))
-                                   namestring)))))
+    (concatenate 'string
+                 (let ((enumclass-name (string (enumclass-name (enumerated-class device)))))
+                   (cond ((layout-force-prefix layout) enumclass-name)
+                         (dot-posn (subseq name 0 dot-posn))
+                         (qualify enumclass-name)))
+                 (when qualify (write-to-string (enumerated-id device) :base 10))
+                 (when (or dot-posn qualify) ".")
+                 (if (and (not (layout-force-prefix layout)) dot-posn)
+                     (subseq name (1+ dot-posn))
+                     name))))
+
+(defun simple-register-instance-name (device layout name)
+  (declare (ignore layout))
+  (concatenate 'string
+               (string (enumclass-name (enumerated-class device)))
+               (write-to-string (enumerated-id device) :base 10)
+               "."
+               name))
+
+(defun layout-register-instance-name (device layout name)
+  (concatenate 'string
+               (string (name layout))
+               (write-to-string (enumerated-id device) :base 10)
+               "."
+               name))
+
+(defun slave-register-instance-name (device layout name &aux
+                                     (master (slave-device-master device)))
+  (declare (ignore layout))
+  (concatenate 'string
+               (string (enumclass-name (enumerated-class master)))
+               (write-to-string (enumerated-id master) :base 10)
+               "."
+               name))
+
+(defun device-register-instance-name (device layout name)
+  "Complete a register instance name given NAME and LAYOUT of DEVICE."
+  (make-keyword (funcall (or (layout-name-fn layout) #'default-register-instance-name)
+                         device layout (string name))))
 
 (defun purge-device-register-instances (device &aux (pool (enumerated-pool device)))
   "Purge all register instances associated with DEVICE."

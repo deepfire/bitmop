@@ -19,6 +19,7 @@
    #:layout
    #:layout-force-prefix
    #:layout-force-multi
+   #:layout-name-fn
    #:layout-registers
    #:layout-register-selectors
    #:register
@@ -208,6 +209,10 @@
    #:device-register-instance
    #:device-layout-register-instances
    #:device-register-instances
+   #:default-register-instance-name
+   #:simple-register-instance-name
+   #:layout-register-instance-name
+   #:slave-register-instance-name
    #:device-register-instance-name
    #:purge-device-register-instances
    #:create-device-register-instances
