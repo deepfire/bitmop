@@ -1,8 +1,8 @@
 ;;; -*- Mode: LISP; Syntax: COMMON-LISP; Package: DEVMODEL; Base: 10; indent-tabs-mode: nil -*-
 ;;;
-;;;  (c) copyright 2009, ГУП НПЦ "Элвис"
+;;;  (c) copyright 2010, ГУП НПЦ "Элвис"
 ;;;
-;;;  (c) copyright 2009 by
+;;;  (c) copyright 2010 by
 ;;;           Samium Gromoff (_deepfire@feelingofgreen.ru)
 ;;;
 ;;; This library is free software; you can redistribute it and/or
