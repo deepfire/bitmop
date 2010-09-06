@@ -608,6 +608,10 @@
 (defun enumerate-device (pool device)
   (enumpool-add pool (device-enumeration-class device) device))
 
+(defun device-space (device)
+  (declare (type device device))
+  (device-class-space (class-of device)))
+
 (defgeneric device-reader (device id)
   (:method ((device device) register-id) (aref (device-readers device) register-id)))
 (defgeneric device-writer (device id)

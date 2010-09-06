@@ -165,6 +165,7 @@
    #:class-of-device
    #:device-enumeration-class
    #:enumerate-device
+   #:device-space
    #:device-reader
    #:device-writer
    #:set-device-reader
