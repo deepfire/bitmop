@@ -177,6 +177,8 @@
    ;; specific devices
    #:slave-device
    #:slave-device-master
+   #:master-device
+   #:master-device-slaves
    #:extended-register-device
    #:device-extensions
    #:struct-device

@@ -649,6 +649,12 @@
   ((master :accessor slave-device-master :initarg :master))
   (:metaclass device-class))
 
+(defclass master-device (device)
+  ((slaves :accessor master-device-slaves :initarg :slaves))
+  (:metaclass device-class))
+
+(defgeneric master-device-slaves (master))
+
 (defclass extended-register-device (device)
   ((extensions :accessor device-extensions :type (vector simple-array) :allocation :class)) ; copied over from class
   (:metaclass extended-register-device-class))
