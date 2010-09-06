@@ -704,69 +704,78 @@
 (defsetf device-register set-device-register)
     
 (defmacro devreg (device regname)
-  `(device-register ,device (load-time-value (register-id ,regname))))
+  (once-only (device)
+   `(device-register ,device (register-id (device-space ,device) ,regname))))
 
 (define-setc-expander devreg (value device regname)
-  `(set-device-register ,device (load-time-value (register-id ,regname)) ,(eeval value)))
+  (once-only (device)
+   `(set-device-register ,device (register-id (device-space ,device) ,regname) ,(eeval value))))
 
 (defmacro devbit-decode (device regname bytename)
   (decode-context (space-name space bitfield) regname `(,bytename)
-    `(bitfield-decode (load-time-value (bitfield (space ',space-name) ,bytename))
-                      (device-register ,device (load-time-value (register-id ,regname))))))
+    (once-only (device)
+     `(bitfield-decode (load-time-value (bitfield (space ',space-name) ,bytename))
+                       (device-register ,device (register-id (device-space ,device) ,regname))))))
 
 (defmacro devreg-decode (device regname)
   (decode-context (space-name space bitfield fmtname) regname ()
-    `(format-decode (load-time-value (register-format ,fmtname))
-                    (device-register ,device (load-time-value (register-id ,regname))))))
+    (once-only (device)
+     `(format-decode (load-time-value (register-format ,fmtname))
+                     (device-register ,device (register-id (device-space ,device) ,regname))))))
 
 (defmacro devbit (device regname bytename)
   (decode-context (space-name space) regname `(,bytename)
-    `(ldb-test ',(bitfield-byte space bytename)
-               (device-register ,device (load-time-value (register-id ,regname))))))
+    (once-only (device)
+     `(ldb-test ',(bitfield-byte space bytename)
+                (device-register ,device (register-id (device-space ,device) ,regname))))))
   
 (defmacro devbit-value (device regname bytename)
   (decode-context (space-name space) regname `(,bytename)
-    `(ldb ',(bitfield-byte space bytename)
-          (device-register ,device (load-time-value (register-id ,regname))))))
+    (once-only (device)
+     `(ldb ',(bitfield-byte space bytename)
+           (device-register ,device (register-id (device-space ,device) ,regname))))))
 
 (define-setc-expander devbit (value device regname bytename &key write-only)
   (decode-context (space-name space bitfield) regname `(,bytename)
     (let ((mask (byte-bitmask (bitfield-spec bitfield))))
-      `(setf (device-register ,device (load-time-value (register-id ,regname)))
-             ,(eeval
-               `(logior ,value ,(unless write-only
-                                  `(device-register ,device (register-id ,regname))))
-               `(,mask ,(lognot mask))
-               `(,(mkenv space-name (name bitfield)) nil))))))
+      (once-only (device)
+       `(setf (device-register ,device (register-id (device-space ,device) ,regname))
+              ,(eeval
+                `(logior ,value ,(unless write-only
+                                         `(device-register ,device (register-id (device-space ,device) ,regname))))
+                `(,mask ,(lognot mask))
+                `(,(mkenv space-name (name bitfield)) nil)))))))
 
 (defmacro devbits (device regname (&rest bytenames))
   (decode-context (space-name space bitfield) regname bytenames
-    `(values-list 
-      (mapcar
-       (rcurry #'ldb-test (device-register ,device (load-time-value (register-id ,regname))))
-       ',(mapcar [bitfield-byte space] bytenames)))))
+    (once-only (device)
+     `(values-list
+       (mapcar
+        (rcurry #'ldb-test (device-register ,device (register-id (device-space ,device) ,regname)))
+        ',(mapcar [bitfield-byte space] bytenames))))))
 
 (define-setc-expander devbits (values device regname (&rest bytenames) &key write-only)
   (decode-context (space-name space bitfield) regname bytenames
-    (with-gensyms (device-var reg-id-var) 
+    (with-gensyms (reg-id-var) 
       (let* ((initial (unless write-only
-                        `(device-register ,device-var ,reg-id-var)))
+                        `(device-register ,device ,reg-id-var)))
              (bytes (mapcar [bitfield-byte space] bytenames)))
-        `(let ((,device-var ,device)
-               (,reg-id-var (load-time-value (register-id ,regname))))
-           (setf (device-register ,device-var ,reg-id-var)
-                 ,(eeval (list* 'logior initial (ensure-destructurisation bytenames values))
-                         (list* (lognot (bytes-bitmask bytes)) (mapcar #'byte-bitmask bytes))
-                         (list* nil (mapcar [mkenv space-name] bytenames)))))))))
+        (once-only (device)
+         `(let ((,reg-id-var (register-id (device-space ,device) ,regname)))
+            (setf (device-register ,device ,reg-id-var)
+                  ,(eeval (list* 'logior initial (ensure-destructurisation bytenames values))
+                          (list* (lognot (bytes-bitmask bytes)) (mapcar #'byte-bitmask bytes))
+                          (list* nil (mapcar [mkenv space-name] bytenames))))))))))
 
 (defmacro test-devbits (device regname bytenames &rest bytevals)
   "Check if every bitfield among those specified by BYTENAMES is set to a value denoted by
    a corresponding member of BYTEVALS."
   (decode-context (space-name space bitfield) nil bytenames
     (let ((bytenames (ensure-list bytenames)))
-      `(= (logand (device-register ,device (load-time-value (register-id ,regname)))
-                  ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
-          (bits ,bytenames ,@bytevals)))))
+      (once-only (device)
+       `(= (logand (device-register ,device (register-id (device-space ,device) ,regname))
+                   ,(bytes-bitmask (mapcar [bitfield-byte space] bytenames)))
+           (bits ,bytenames ,@bytevals))))))
 
 ;;;;
 ;;;; Register instances
@@ -864,7 +873,7 @@ belong to LAYOUT."
               ;; BUG: note how the above BUG relates to this...
               ;;
               (id (1+ (hash-table-count (ri-enumpool-reginstances-by-id pool))))
-              (reg-id (register-id (name register)))
+              (reg-id (register-id (device-space device) (name register)))
               (instance (make-register-instance :name main-ri-name :aliases ri-aliases
                                                 :register register :device device :selector selector :id id :layout layout
                                                 :reader (device-class-reader device-class reg-id)

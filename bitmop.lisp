@@ -165,10 +165,10 @@
   (declare (space space) (keyword name))
   (translation (space-register-dictionary space) name))
 
-(declaim (ftype (function (symbol) fixnum) register-id))
-(defun register-id (name)
-  (declare (keyword name))
-  (symbol-id (space-register-dictionary (register-space name)) name))
+(declaim (ftype (function (space symbol) fixnum) register-id))
+(defun register-id (space name)
+  (declare (space space) (keyword name))
+  (symbol-id (space-register-dictionary space) name))
 
 (declaim (ftype (function (space fixnum) register) register-by-id))
 (defun register-by-id (space id)
