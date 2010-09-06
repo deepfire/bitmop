@@ -800,7 +800,7 @@
   (reginstances (make-hash-table :test 'eq) :type hash-table)
   (reginstances-by-id (make-hash-table :test 'eq) :type hash-table))
 
-(define-subcontainer register-instance :container-slot reginstances :type register-instance :if-exists :error
+(define-subcontainer register-instance :container-slot reginstances :type register-instance :if-exists :continue
                      :iterator do-register-instances :remover remove-register-instance)
 (define-subcontainer register-instance-by-id :container-slot reginstances-by-id :type register-instance :if-exists :continue :type-allow-nil-p t)
 
@@ -917,6 +917,14 @@ belong to LAYOUT."
         (iter (for ri-name in (cons main-ri-name ri-aliases))
               (assert ri-name)
               (setf (register-instance pool ri-name) instance))))))
+
+(defun define-anonymous-register-instance (pool name reader writer)
+  (let* ((free-id (1+ (hash-table-count (ri-enumpool-reginstances-by-id pool))))
+         (ri (make-register-instance :name name :id free-id
+                                     :device nil :selector nil
+                                     :reader reader :writer writer)))
+    (setf (register-instance-by-id pool free-id) ri
+          (register-instance pool name) ri)))
 
 ;;;;
 ;;;; Das init

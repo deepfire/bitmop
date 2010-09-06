@@ -218,6 +218,7 @@
    #:device-register-instance-name
    #:purge-device-register-instances
    #:create-device-register-instances
+   #:define-anonymous-register-instance
    ;; final
    #:init-device-model
    ;; sugar.lisp
