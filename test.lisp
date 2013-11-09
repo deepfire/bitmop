@@ -156,12 +156,12 @@
     (expect-success (test-devbits tdev :barreg :bc :eoo))))
 
 (deftest device-related reginstance-test (tdev) ()
-  (setf (devreg tdev :barreg) #xfeed)
-  (expect-value #xfeed (reginstance-value (register-instance :barreg))))
+  (setc (devreg tdev :barreg) #xfeed)
+  (expect-value #xfeed (reginstance-value (device-register-instance tdev :barreg))))
 
 (deftest device-related reginstance-cross-r/w-test (tdev) ()
-  (setf (reginstance-value (register-instance :mbw0)) #xfeed)
-  (expect-value #xfeed (reginstance-value (register-instance :mbr0))))
+  (setf (reginstance-value (device-register-instance tdev :mbw0)) #xfeed)
+  (expect-value #xfeed (reginstance-value (device-register-instance tdev :mbr0))))
 
 ;; (deftest device-related device-runtime-queries-test (tdev)
 ;;   (let* ((unispace (space (space-name-context)))
@@ -175,7 +175,9 @@
 (defun run-tests (&rest test-suites)
   "Run a set of test suites. Defaults to PURE-EVALUATION and DEVICE-RELATED."
   (let ((test-suites (or test-suites '(pure-evaluation device-related)))
+        (enumpool (make-reginstance-enumeration-pool))
         (device (make-instance 'test-device)))
+    (enumerate-device enumpool device)
     (with-condition-printing (t custom-harness:test-error)
       (lret ((success t))
         (dolist (suite test-suites)
